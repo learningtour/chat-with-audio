@@ -34,7 +34,8 @@ def test_classify_segments_speech_music_silence(sr):
 def test_refine_hits_targets(sr):
     x = _theater(sr)
     y, info = refine.refine(x, sr, speech_peak_db=-6.0, music_gap_db=2.0,
-                            max_iterations=6, denoise=False, tone=False)
+                            max_iterations=6, denoise="off", tone=False,
+                            asr_check=False)
     rep = info["report"]
     final = rep["final_measurements"]
     assert abs(final["speech_peak_db"] - (-6.0)) <= 1.5

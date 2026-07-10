@@ -23,6 +23,9 @@ ai = [
     "torch>=2.0,<2.9",
     "torchaudio>=2.0,<2.9",
 ]
+asr = [
+    "openai-whisper>=20231117",
+]
 
 [project.scripts]
 ait = "audio_improve_toolkit.cli:main"

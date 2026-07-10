@@ -218,16 +218,17 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None) 
 
 @mcp.tool()
 def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
-                 max_iterations: int = 5, denoise: bool = True, tone: bool = True,
-                 speech_denoise_db: float = 24.0, out_path: str | None = None) -> dict:
+                 max_iterations: int = 5, denoise: str = "auto", tone: bool = True,
+                 asr_check: bool = True, out_path: str | None = None) -> dict:
     """Iteratieve verfijning tot spraakniveau en spraak/muziek-balans exact kloppen.
 
-    Segmenteert het bestand (spraak/muziek/stilte), ontruist per segment (AI op
-    spraak, mild op muziek), en draait dan een meet-en-bijstuur-lus: leveler +
-    compressor + loudness, net zo lang tot de spraakpieken op speech_peak_db
-    (dBFS) zitten en de muziek music_gap_db daarboven. Het resultaat bevat de
-    volledige meetgeschiedenis per iteratie ('report'), zodat je in de chat kunt
-    beoordelen wat er gebeurde en gericht kunt bijsturen.
+    Segmenteert het bestand (spraak/muziek/stilte) en draait een meet-en-bijstuur-
+    lus (leveler + compressor + loudness) tot de spraakpieken op speech_peak_db
+    (dBFS) zitten en de muziek music_gap_db daarboven. denoise: auto|on|off —
+    'auto' zet AI-ontruising alleen in bij lage spraak-SNR en laat Whisper
+    (indien geinstalleerd) verifieren dat de transcribeerbaarheid niet daalt;
+    het rapport bevat de meetgeschiedenis, de genomen beslissingen en een
+    woordretentie-eindcheck ('report.asr') om verstaanbaarheidsverlies te zien.
     """
     from audio_improve_toolkit import refine as refine_mod
 
@@ -236,13 +237,13 @@ def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: flo
     y, info = refine_mod.refine(x, sr, speech_peak_db=speech_peak_db,
                                 music_gap_db=music_gap_db,
                                 max_iterations=max_iterations,
-                                denoise=denoise, tone=tone,
-                                speech_denoise_db=speech_denoise_db)
+                                denoise=denoise, tone=tone, asr_check=asr_check)
     m1 = analysis.analyze(y, sr)
     rep = info["report"]
     rationale = [f"Iteratieve verfijning ({len(rep['iterations'])} iteraties, "
                  f"{'geconvergeerd' if rep['converged'] else 'maximum bereikt'}): "
                  f"doel spraakpiek {speech_peak_db} dBFS, muziek {music_gap_db:+.1f} dB daarbij."]
+    rationale.extend(rep.get("decisions", []))
     for it in rep["iterations"]:
         e = it["errors"]
         rationale.append(f"Iteratie {it['iteration']}: spraakpiek-afwijking "
@@ -282,6 +283,25 @@ def list_sessions(session_id: str | None = None) -> dict:
     items = sessions.list_sessions()
     return {"count": len(items), "sessions": items,
             "sessions_dir": str(sessions.sessions_dir())}
+
+
+@mcp.tool()
+def transcribe_audio(file_path: str, model_size: str = "small", language: str = "nl",
+                     start_s: float | None = None, end_s: float | None = None) -> dict:
+    """Transcribeer (een deel van) een audiobestand met Whisper.
+
+    Handig als verstaanbaarheidscheck: transcribeer origineel en bewerking en
+    vergelijk. Vereist het [asr]-extra (uv sync --all-extras). model_size:
+    tiny|base|small|medium (groter = beter maar trager).
+    """
+    from audio_improve_toolkit import asr
+
+    if not asr.is_available():
+        raise RuntimeError(asr.INSTALL_HINT)
+    x, sr = io.load_audio(file_path)
+    a = int((start_s or 0) * sr)
+    b = int(end_s * sr) if end_s else x.shape[1]
+    return asr.transcribe(x[:, a:b], sr, model_size=model_size, language=language)
 
 
 @mcp.tool()

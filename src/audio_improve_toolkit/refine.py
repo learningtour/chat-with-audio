@@ -69,26 +69,57 @@ def _duck_silence(y: np.ndarray, sr: int, segs: list[dict], duck_db: float = 18.
     return y
 
 
+def _speech_snr_db(x: np.ndarray, sr: int, speech_slices: list[slice]) -> float | None:
+    sp = _cat(x, speech_slices)
+    if sp is None:
+        return None
+    mono = sp.mean(axis=0)
+    flen = max(1, int(sr * 0.025))
+    nf = mono.shape[0] // flen
+    if nf < 8:
+        return None
+    fr = 10 * np.log10((mono[: nf * flen].reshape(nf, flen) ** 2).mean(axis=1) + 1e-20)
+    floor = float(np.sort(fr)[: max(1, nf // 10)].mean())
+    return round(float(np.percentile(fr, 90)) - floor, 1)
+
+
 def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
            music_gap_db: float = 2.0, max_iterations: int = 5,
-           denoise: bool = True, tone: bool = True, silence_duck_db: float = 18.0,
-           speech_denoise_db: float = 24.0,
+           denoise: str = "auto", tone: bool = True, silence_duck_db: float = 18.0,
+           asr_check: bool = True,
            progress=None) -> tuple[np.ndarray, dict]:
     """Verfijn tot spraakpieken en spraak/muziek-balans op de millimeter kloppen.
 
-    speech_denoise_db begrenst de AI-ontruising: vol vermogen (100) klinkt op
-    galmende opnames waterig/faserig; ~24 dB houdt het natuurlijk.
+    denoise: "auto" (aan als de spraak-SNR laag is, en alleen als Whisper
+    bevestigt dat het de transcribeerbaarheid niet schaadt), "on" of "off".
+    Met asr_check en het [asr]-extra wordt het eindresultaat altijd op
+    transcribeerbaarheid vergeleken met het origineel (report["asr"]).
     """
+    from audio_improve_toolkit import asr
+
     x2 = x[None, :] if x.ndim == 1 else x
     segs = classify_segments(x2, sr)
     has_speech = any(s["kind"] == "speech" for s in segs)
     has_music = any(s["kind"] == "music" for s in segs)
+    speech_sl = segment_slices(segs, sr, "speech")
+    decision_log: list[str] = []
 
-    # Dure bulk-stappen (AI-ontruising) een keer vooraf; de lus stuurt de rest.
+    # Besluit over AI-ontruising: alleen bij lage spraak-SNR. Bij hoge SNR is het
+    # 'vuil' doorgaans zaalgalm — daar maakt een denoiser spraak juist slechter.
+    use_denoise = denoise == "on"
+    if denoise == "auto" and has_speech:
+        snr = _speech_snr_db(x2, sr, speech_sl)
+        if snr is not None and snr < 32.0:
+            use_denoise = True
+            decision_log.append(f"Spraak-SNR {snr} dB is laag: AI-ontruising ingezet.")
+        else:
+            decision_log.append(f"Spraak-SNR {snr} dB is al hoog; AI-ontruising "
+                                "overgeslagen (het restgeluid is vooral zaalgalm, "
+                                "daar helpt een denoiser niet tegen).")
+
     pre_steps: list[dict] = [{"type": "highpass", "freq": 80}]
-    if denoise:
-        pre_steps.append({"type": "smart_denoise",
-                          "speech_strength_db": speech_denoise_db})
+    if use_denoise:
+        pre_steps.append({"type": "smart_denoise", "speech_strength_db": 100})
     if tone:
         pre_steps.append({"type": "eq", "bands": [
             {"type": "peaking", "freq": 300, "gain_db": -3.0, "q": 1.2},
@@ -96,8 +127,26 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
             {"type": "highshelf", "freq": 8000, "gain_db": 2.0, "q": 0.707},
         ]})
     if progress:
-        progress("voorbewerking (ontruising per segment)")
+        progress("voorbewerking")
     x_clean, pre_resolved = chain.run_chain(x2, sr, pre_steps)
+
+    # Whisper als scheidsrechter: schaadt de ontruising de transcribeerbaarheid?
+    ref_transcript = None
+    if asr_check and has_speech and asr.is_available():
+        ref_transcript = asr.transcribe(_cat(x2, speech_sl), sr)
+        if use_denoise:
+            t_clean = asr.transcribe(_cat(x_clean, speech_sl), sr)
+            retention = asr.word_retention(ref_transcript["text"], t_clean["text"])
+            if retention < 0.75:
+                decision_log.append(f"Whisper-check: woordretentie zakte naar "
+                                    f"{retention:.0%} door de ontruising — "
+                                    "teruggedraaid, doorgegaan zonder AI-ontruising.")
+                use_denoise = False
+                pre_steps = [s for s in pre_steps if s["type"] != "smart_denoise"]
+                x_clean, pre_resolved = chain.run_chain(x2, sr, pre_steps)
+            else:
+                decision_log.append(f"Whisper-check: woordretentie {retention:.0%} "
+                                    "na ontruising — akkoord.")
 
     lufs_t, cut = -18.0, 14.0
     history: list[dict] = []
@@ -136,11 +185,29 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
         lufs_t += float(np.clip(err_pk, -5.0, 5.0))
         cut = float(np.clip(cut + np.clip(err_gap, -6.0, 6.0), 6.0, 26.0))
 
+    # Eindrapport transcribeerbaarheid: origineel vs resultaat.
+    asr_report = None
+    if ref_transcript is not None:
+        t_final = asr.transcribe(_cat(y, speech_sl), sr)
+        asr_report = {
+            "word_retention": asr.word_retention(ref_transcript["text"], t_final["text"]),
+            "logprob_original": round(float(np.mean(
+                [s["avg_logprob"] for s in ref_transcript["segments"]] or [0])), 2),
+            "logprob_processed": round(float(np.mean(
+                [s["avg_logprob"] for s in t_final["segments"]] or [0])), 2),
+            "transcript_original": ref_transcript["text"],
+            "transcript_processed": t_final["text"],
+        }
+        decision_log.append(f"Eindcheck Whisper: woordretentie "
+                            f"{asr_report['word_retention']:.0%}.")
+
     report = {
         "segments": segs,
         "iterations": history,
         "converged": bool(history and history[-1].get("converged", False)),
         "final_measurements": history[-1]["measurements"] if history else {},
         "targets": {"speech_peak_db": speech_peak_db, "music_gap_db": music_gap_db},
+        "decisions": decision_log,
+        "asr": asr_report,
     }
     return y, {"report": report, "steps": pre_resolved + loop_resolved}
