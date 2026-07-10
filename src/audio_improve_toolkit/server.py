@@ -15,6 +15,8 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+import numpy as np
+
 from mcp.server.fastmcp import FastMCP
 
 from audio_improve_toolkit import analysis, chain, improve, io, sessions
@@ -283,6 +285,84 @@ def list_sessions(session_id: str | None = None) -> dict:
     items = sessions.list_sessions()
     return {"count": len(items), "sessions": items,
             "sessions_dir": str(sessions.sessions_dir())}
+
+
+@mcp.tool()
+def separate_stems(file_path: str, out_dir: str | None = None) -> dict:
+    """Splits muziek in stems: vocals, drums, bass en other (Demucs AI-model).
+
+    De stems worden als losse wav's in de sessiemap (of out_dir) gezet — direct
+    bruikbaar in een DAW. Voor herbalanceren in een keer: rebalance_music.
+    Vereist het [stems]-extra (uv sync --all-extras).
+    """
+    from audio_improve_toolkit.dsp import stems as stems_mod
+
+    if not stems_mod.is_available():
+        raise RuntimeError(stems_mod.INSTALL_HINT)
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    parts = stems_mod.separate(x, sr)
+    session = sessions.create_session(file_path, x, sr, m0,
+                                      label=f"{Path(file_path).name} — stems")
+    stems_dir = Path(out_dir).expanduser() if out_dir else (
+        sessions.session_path(session["session_id"]) / "stems")
+    stems_dir.mkdir(parents=True, exist_ok=True)
+    result_stems = {}
+    for name, y in parts.items():
+        p = io.save_wav(stems_dir / f"{name}.wav", y, sr)
+        rms = float(20 * np.log10(np.sqrt((y**2).mean()) + 1e-12))
+        result_stems[name] = {"path": str(p), "rms_db": round(rms, 1)}
+    return {"session_id": session["session_id"], "stems": result_stems,
+            "hint": "Gebruik rebalance_music om de mix te herbalanceren "
+                    "(bv. vocals_db=+3, of vocals_db=-60 voor karaoke)."}
+
+
+@mcp.tool()
+def rebalance_music(file_path: str, vocals_db: float = 0.0, drums_db: float = 0.0,
+                    bass_db: float = 0.0, other_db: float = 0.0,
+                    target_lufs: float | None = None,
+                    out_path: str | None = None) -> dict:
+    """Herbalanceer een mix per stem: "zang 3 dB erbij", "drums zachter", of een
+    karaoke-versie (vocals_db=-60). Splitst met Demucs, past per stem gain toe,
+    mixt terug en bewaakt de pieken met een limiter. target_lufs normaliseert
+    de eindmix optioneel. Resultaat staat als A/B-sessie in de viewer.
+    """
+    from audio_improve_toolkit.dsp import stems as stems_mod
+
+    if not stems_mod.is_available():
+        raise RuntimeError(stems_mod.INSTALL_HINT)
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    parts = stems_mod.separate(x, sr)
+    gains = {"vocals": vocals_db, "drums": drums_db, "bass": bass_db, "other": other_db}
+    y = np.zeros_like(x, dtype=np.float32)
+    for name, part in parts.items():
+        y = y + part * (10.0 ** (gains.get(name, 0.0) / 20.0))
+    steps: list[dict] = [{"type": "limiter", "ceiling_db": -1.0}]
+    if target_lufs is not None:
+        steps = [{"type": "loudness_normalize", "target_lufs": target_lufs,
+                  "true_peak_db": -1.0}]
+    y, resolved = chain.run_chain(y, sr, steps)
+    m1 = analysis.analyze(y, sr)
+    changed = ", ".join(f"{k} {v:+.1f} dB" for k, v in gains.items() if v)
+    rationale = [f"Stems gescheiden (Demucs) en geherbalanceerd: {changed or 'geen wijziging'}.",
+                 "Eindmix piekbewaakt" + (f" en genormaliseerd naar {target_lufs} LUFS."
+                                          if target_lufs is not None else ".")]
+    session = sessions.create_session(file_path, x, sr, m0, y, m1,
+                                      [{"type": "rebalance", **gains}] + resolved,
+                                      rationale, None,
+                                      label=f"{Path(file_path).name} — rebalance")
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "rationale": rationale,
+        "deltas": session["deltas"],
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
 
 
 @mcp.tool()

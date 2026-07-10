@@ -6,9 +6,9 @@ baanbrekend, elk productiehuis wil dit downloaden." Werkwijze: elke feature af
 
 ## Status
 
-- [ ] 1. Spectrale reparatie: declip + declick (dsp/repair.py, chain-steps,
+- [x] 1. Spectrale reparatie: declip + declick (dsp/repair.py, chain-steps,
       MCP-tool repair_audio, auto-declip in improve bij clip_events > 0)
-- [ ] 2. Stem-separatie (Demucs htdemucs): separate_stems + rebalance_music
+- [x] 2. Stem-separatie (Demucs htdemucs): separate_stems + rebalance_music
       (incl. karaoke = vocals -60 dB); A/B-sessie voor rebalance
 - [ ] 3. Residu-beluistering in de viewer: derde knop "R - verschil" =
       loudness-gematcht verschil tussen origineel en bewerking (artefact-check)
