@@ -99,7 +99,16 @@ def build_improve_chain(m: dict, profile: str = "auto", target_lufs: float | Non
 
     crest = m.get("crest_factor_db", 12)
     lra = m.get("lra_db") or 0
-    if profile == "speech" and (crest > 18 or lra > 13):
+    if profile == "speech" and lra > 18:
+        floor = m.get("noise_floor_db", -55) + 8
+        steps.append({"type": "leveler", "target_db": -18.0, "max_boost_db": 20.0,
+                      "max_cut_db": 18.0, "floor_db": round(floor, 1)})
+        steps.append({"type": "compressor", "threshold_db": -10.0, "ratio": 3.0,
+                      "attack_ms": 3.0, "release_ms": 150.0})
+        rationale.append(f"Zeer grote balansverschillen (LRA {lra} dB): leveler trekt "
+                         "stille en luide delen naar een gezamenlijk niveau; een "
+                         "compressor vangt daarna de pieken.")
+    elif profile == "speech" and (crest > 18 or lra > 13):
         thr = round(m.get("rms_db", -24) + 4, 1)
         steps.append({"type": "compressor", "threshold_db": thr, "ratio": 2.5, "knee_db": 6.0})
         rationale.append(f"Grote dynamiek (crest {crest} dB, LRA {lra} dB): lichte "

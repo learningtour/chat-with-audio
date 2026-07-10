@@ -36,6 +36,21 @@ def test_improve_end_to_end(tmp_path, sr, noisy_wav):
     assert loaded["deltas"]["lufs_integrated"] > 10
 
 
+def test_leveler_balances_levels(sr):
+    t = np.arange(sr * 8) / sr
+    sine = np.sin(2 * np.pi * 440 * t)
+    amp = np.where(t < 4, 10 ** (-40 / 20), 10 ** (-10 / 20))  # zacht -> luid, 30 dB gat
+    x = (sine * amp).astype(np.float32)[None, :]
+    y, _ = chain.run_chain(x, sr, [{"type": "leveler", "target_db": -18,
+                                    "max_boost_db": 20, "max_cut_db": 18,
+                                    "floor_db": -50}])
+    rms = lambda s: 10 * np.log10(np.mean(np.asarray(s, dtype=np.float64) ** 2) + 1e-20)
+    gap_in = rms(x[:, 5 * sr:7 * sr]) - rms(x[:, sr:3 * sr])
+    gap_out = rms(y[:, 5 * sr:7 * sr]) - rms(y[:, sr:3 * sr])
+    assert gap_in > 25
+    assert abs(gap_out) < 8
+
+
 def test_normalize_loudness_no_clip(sr):
     rng = np.random.default_rng(5)
     t = np.arange(sr * 6) / sr

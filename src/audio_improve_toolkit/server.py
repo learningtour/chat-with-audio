@@ -202,6 +202,10 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None) 
        "hold_ms": 50, "range_db": 12}
       {"type": "compressor", "threshold_db": -20, "ratio": 3, "attack_ms": 10,
        "release_ms": 150, "knee_db": 6, "makeup_db": 0}
+      {"type": "leveler", "target_db": -18, "max_boost_db": 20, "max_cut_db": 18,
+       "floor_db": -40, "smooth_s": 0.8}
+        (gain-riding: stille passages omhoog, luide omlaag naar een gezamenlijk
+         niveau — voor spraak/muziek-balans; floor_db beschermt stilte/ruis)
       {"type": "limiter", "ceiling_db": -1.5, "release_ms": 60, "lookahead_ms": 5}
       {"type": "loudness_normalize", "target_lufs": -16, "true_peak_db": -1.5}
 

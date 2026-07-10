@@ -82,6 +82,45 @@ def _step_compressor(x, sr, threshold_db: float, ratio: float = 3.0, attack_ms: 
     return dsp.compressor(x, sr, threshold_db, ratio, attack_ms, release_ms, knee_db, makeup_db)
 
 
+def _step_leveler(x, sr, target_db: float = -18.0, max_boost_db: float = 20.0,
+                  max_cut_db: float = 12.0, floor_db: float | None = None,
+                  smooth_s: float = 0.8):
+    """Automatische gain-riding: stille passages (spraak) omhoog, luide (muziek)
+    omlaag naar een gezamenlijk kortetermijnniveau. Stilte/ruis onder floor_db
+    wordt niet opgetild."""
+    from scipy.ndimage import gaussian_filter1d
+
+    x2 = x[None, :] if x.ndim == 1 else x
+    mono = x2.mean(axis=0).astype(np.float64)
+    n = mono.shape[0]
+    hop = max(1, int(sr * 0.05))
+    half = max(1, int(sr * 0.2))  # 400 ms meetvenster
+
+    cs = np.concatenate([[0.0], np.cumsum(mono**2)])
+    centers = np.arange(0, n, hop)
+    lo = np.maximum(centers - half, 0)
+    hi = np.minimum(centers + half, n)
+    level = 10.0 * np.log10((cs[hi] - cs[lo]) / np.maximum(hi - lo, 1) + 1e-20)
+
+    if floor_db is None:
+        quiet = np.sort(level)[: max(1, len(level) // 10)]
+        floor_db = float(quiet.mean()) + 8.0
+
+    active = level > floor_db
+    if not active.any():
+        return x2.astype(np.float32)
+    gain_db = np.clip(target_db - level, -abs(max_cut_db), abs(max_boost_db))
+    idx = np.where(active)[0]
+    # inactieve frames (pauzes) volgen hun actieve buren, zodat ruis niet wordt opgepompt
+    gain_db = np.interp(np.arange(len(level)), idx, gain_db[idx])
+    sigma_frames = max(smooth_s * sr / hop / 2.0, 1.0)
+    gain_db = gaussian_filter1d(gain_db, sigma=sigma_frames)
+
+    gains = (10.0 ** (gain_db / 20.0)).astype(np.float64)
+    per_sample = np.interp(np.arange(n), centers, gains)
+    return (x2 * per_sample[None, :]).astype(np.float32)
+
+
 def _step_limiter(x, sr, ceiling_db: float = -1.5, release_ms: float = 60.0,
                   lookahead_ms: float = 5.0):
     return dsp.limiter(x, sr, ceiling_db, release_ms, lookahead_ms)
@@ -101,6 +140,7 @@ STEP_REGISTRY = {
     "denoise": _step_denoise,
     "gate": _step_gate,
     "compressor": _step_compressor,
+    "leveler": _step_leveler,
     "limiter": _step_limiter,
     "loudness_normalize": _step_loudness_normalize,
 }
