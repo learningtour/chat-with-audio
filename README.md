@@ -39,6 +39,13 @@ Claude (chat)  ── MCP (stdio) ──>  Python-orchestratie ──> C++ DSP-k
 - **"Splits de stems" / "zang 3 dB erbij" / "maak een karaoke-versie"** —
   `separate_stems` en `rebalance_music` (Demucs, [stems]-extra).
 - **"Doe de hele map"** — `improve_folder`: batchverwerking (improve/refine/optimize).
+- **"Laat me zien wat er veranderd is"** — `view_audio`: perceptueel paneel
+  (gehoorschaal-spectrogrammen + verschilkaart + levelcurves) dat de AI zelf
+  bekijkt om te beoordelen wat hoorbaar is.
+- **"Dit klinkt goed / dit klinkt slecht"** — `rate_audio`: train je eigen
+  smaakmodel; analyze_audio scoort nieuwe audio daarna tegen jouw smaak.
+- **"Zet dit klaar in Audition"** — `export_to_audition`: stems + .sesx-
+  multitracksessie, direct geopend in Adobe Audition.
 - **"Open de viewer"** / **"Wat is er precies veranderd?"** — A/B-vergelijking; Claude
   leest dezelfde sessiedata als de viewer toont.
 

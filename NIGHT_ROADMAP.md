@@ -17,7 +17,7 @@ baanbrekend, elk productiehuis wil dit downloaden." Werkwijze: elke feature af
 - [x] 5. Auto-de-esser (spectraal, alleen spraaksegmenten) + resonantiedetectie
       -> notches; opnemen in improve-regels
 - [x] 6. Batchverwerking: ait batch + MCP improve_folder
-- [ ] 7. Docs (README/CLAUDE.md), mcp_smoke bijwerken, ochtendrapport
+- [x] 7. Docs (README/CLAUDE.md), mcp_smoke bijwerken, ochtendrapport
       (MORNING_REPORT.md) + memory bijwerken
 
 ## Regels

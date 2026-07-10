@@ -18,11 +18,36 @@ volwaardige chat-gestuurde audiostudio met **15 MCP-tools**. Alles is getest
 | **Batchverwerking** | "doe de hele map" | improve_folder: improve/refine/optimize per bestand |
 | **Whisper-medium scheidsrechter** | optimize_audio(judge_model="medium") | Strengere verstaanbaarheidsjury voor nachtruns |
 
-## De nachtrun op jouw testbestand
+## De nachtrun op jouw testbestand — met een verrassing
 
-Bij het schrijven van dit rapport draaide de diepe optimalisatie
-(Whisper-medium, 9 varianten incl. de-esser/dereverb-combinaties) nog — de
-uitslag staat in de nieuwste sessie in de viewer en in de chat.
+De diepe run met de **strengere Whisper-medium-jury** kantelt de ranglijst:
+
+| Variant | Retentie (medium-jury) |
+|---|---|
+| **rustig-geen-ai** (winnaar, sessie 20260711-000738) | **75%** |
+| basis-geen-ai | 66% |
+| dereverb-deess-rustig | 53% |
+| dereverb-varianten | 38-47% |
+
+De small-jury van gisteravond vond dereverb beter; de medium-jury (veel
+sterker in Nederlands) hoort dat dereverb-artefacten woorden kosten. Les:
+**de kalme DSP-keten zonder AI-nabewerking is op dit materiaal de beste** —
+en de jury-kwaliteit bepaalt mede de uitslag. Beide sessies staan in de
+viewer; luister zelf welke jouw oren kiezen. Jouw oordeel kun je nu ook
+vastleggen met rate_audio (dat traint het smaakmodel).
+
+## Later op de nacht bijgebouwd (jouw 3 richtingen)
+
+1. **view_audio** — perceptueel paneel dat ik als AI zelf kan bekijken:
+   gehoorschaal-spectrogrammen, verschilkaart (rood = toegevoegd, blauw =
+   weggehaald), levelcurves. Zelftest gedaan: ik kon de leveling, ducking en
+   highpass er direct in aanwijzen.
+2. **rate_audio + smaakmodel** — label 'good'/'bad'; vanaf 2+2 voorbeelden
+   krijgt elke analyse een taste_score met uitleg welke eigenschappen afwijken
+   van jouw 'goed'-voorbeelden.
+3. **export_to_audition** — stems (Demucs) + .sesx-multitracksessie voor
+   Adobe Audition 2024 (gevonden op deze Mac). Demo staat klaar in de
+   sessiemap van de nachtrun-winnaar (audition/), nog niet geopend.
 
 ## Waar alles staat
 

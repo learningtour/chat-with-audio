@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -112,6 +113,12 @@ def analyze_audio(file_path: str, create_session: bool = True) -> dict:
         "ai_denoise_available": dsp.ai_denoise_available(),
         "dsp_backend": dsp.backend(),
     }
+    from audio_improve_toolkit import training
+
+    taste = training.score(m)
+    result["taste"] = taste if taste else {
+        "hint": "Nog geen smaakmodel: label voorbeelden met rate_audio "
+                "(minimaal 2x 'good' en 2x 'bad')."}
     if create_session:
         session = sessions.create_session(file_path, x, sr, m)
         result["session_id"] = session["session_id"]
@@ -545,6 +552,122 @@ def transcribe_audio(file_path: str, model_size: str = "small", language: str = 
     a = int((start_s or 0) * sr)
     b = int(end_s * sr) if end_s else x.shape[1]
     return asr.transcribe(x[:, a:b], sr, model_size=model_size, language=language)
+
+
+@mcp.tool()
+def view_audio(session_id: str | None = None, file_path: str | None = None):
+    """Render het perceptuele vergelijkingspaneel als afbeelding, zodat de AI kan
+    ZIEN wat mensen zullen horen.
+
+    Paneel-indeling: (1) spectrogram A op gehoorschaal (log-frequentie 60 Hz -
+    16 kHz, laag onderaan), (2) spectrogram B, (3) verschilkaart B-A waarin
+    ROOD = door de bewerking toegevoegd en BLAUW = weggehaald (bereik +/-18 dB),
+    (4) levelcurves (A grijs, B blauw). Kijk naar: verdwenen medeklinker-
+    transienten (verticale strepen), aangetaste harmonischen (horizontale
+    lijnen), galmstaarten na woorden, en of de blauwe curve rustiger loopt.
+    Geef session_id (vergelijkt origineel vs bewerking) of file_path (alleen
+    analyse van een bestand).
+    """
+    from mcp.server.fastmcp import Image as MCPImage
+
+    from audio_improve_toolkit import visuals
+
+    if session_id:
+        d = sessions.session_path(session_id)
+        xo, sr = io.load_audio(d / "original.wav")
+        xp = None
+        if (d / "processed.wav").exists():
+            xp, _ = io.load_audio(d / "processed.wav")
+        png = visuals.perceptual_panel(xo, sr, xp)
+        (d / "perceptual_panel.png").write_bytes(png)
+    elif file_path:
+        x, sr = io.load_audio(file_path)
+        png = visuals.perceptual_panel(x, sr, None)
+    else:
+        raise ValueError("Geef session_id of file_path op.")
+    return MCPImage(data=png, format="png")
+
+
+@mcp.tool()
+def rate_audio(label: str, session_id: str | None = None, file_path: str | None = None,
+               note: str = "") -> dict:
+    """Train het smaakmodel: label audio als 'good' of 'bad'.
+
+    Bij een session_id wordt de bewerkte versie gelabeld (dat is wat je hoorde);
+    bij een file_path het bestand zelf. Vanaf 2 voorbeelden per klasse scoort
+    analyze_audio nieuwe audio automatisch tegen jouw smaak (taste_score 0-100,
+    met de grootste afwijkingen als aanknopingspunt voor verbeteringen).
+    """
+    from audio_improve_toolkit import training
+
+    if session_id:
+        d = sessions.session_path(session_id)
+        target = d / "processed.wav" if (d / "processed.wav").exists() else d / "original.wav"
+        source = f"sessie {session_id} ({target.name})"
+    elif file_path:
+        target, source = Path(file_path).expanduser(), file_path
+    else:
+        raise ValueError("Geef session_id of file_path op.")
+    x, sr = io.load_audio(target)
+    m = analysis.analyze(x, sr)
+    c = training.add_example(m, label, str(source), note)
+    ready = c["good"] >= training.MIN_PER_CLASS and c["bad"] >= training.MIN_PER_CLASS
+    return {"counts": c, "model_active": ready,
+            "hint": "Smaakmodel actief: analyze_audio geeft nu een taste_score."
+                    if ready else
+                    f"Nog {max(0, 2 - c['good'])}x good en {max(0, 2 - c['bad'])}x bad "
+                    "nodig om het model te activeren."}
+
+
+@mcp.tool()
+def export_to_audition(session_id: str | None = None, file_path: str | None = None,
+                       source: str = "original", include_mix: bool = True,
+                       open_app: bool = True) -> dict:
+    """Splits audio in stems en zet ze klaar als Adobe Audition-multitracksessie.
+
+    Maakt vocals/drums/bass/other-wav's plus een .sesx-sessiebestand (elke stem
+    op een eigen spoor) en opent die in Audition. source: original|processed
+    (bij een session_id). De losse wav's staan er altijd naast voor handmatig
+    importeren. Vereist het [stems]-extra.
+    """
+    from audio_improve_toolkit import audition
+    from audio_improve_toolkit.dsp import stems as stems_mod
+
+    if not stems_mod.is_available():
+        raise RuntimeError(stems_mod.INSTALL_HINT)
+    if session_id:
+        d = sessions.session_path(session_id)
+        wav = d / ("processed.wav" if source == "processed"
+                   and (d / "processed.wav").exists() else "original.wav")
+        name, out_dir = session_id, d / "audition"
+    elif file_path:
+        wav = Path(file_path).expanduser()
+        name = re.sub(r"[^a-zA-Z0-9_-]+", "-", wav.stem)
+        out_dir = sessions.sessions_dir() / f"audition-{name}"
+    else:
+        raise ValueError("Geef session_id of file_path op.")
+
+    x, sr = io.load_audio(wav)
+    parts = stems_mod.separate(x, sr)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    tracks = []
+    for tname, y in parts.items():
+        p = io.save_wav(out_dir / f"{tname}.wav", y, sr)
+        tracks.append((tname, p, int(y.shape[1])))
+    if include_mix:
+        p = io.save_wav(out_dir / "mix.wav", x, sr)
+        tracks.append(("mix", p, int(x.shape[1])))
+    sesx = audition.write_sesx(out_dir, name[:48], tracks, sr)
+
+    opened = False
+    if open_app:
+        opened = audition.open_in_audition([sesx])
+    return {"sesx": str(sesx), "tracks": {t: str(p) for t, p, _ in tracks},
+            "opened_in_audition": opened,
+            "hint": None if opened else
+                    ("Audition niet gevonden of open_app=False; open het "
+                     ".sesx-bestand handmatig of sleep de wav's in een sessie.")}
 
 
 @mcp.tool()
