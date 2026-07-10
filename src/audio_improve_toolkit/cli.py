@@ -33,6 +33,13 @@ def main() -> None:
     pr.add_argument("--denoise", default="auto", choices=["auto", "on", "off"])
     pr.add_argument("--out", default=None)
 
+    po = sub.add_parser("optimize", help="varianten-wedstrijd: beste pijplijn wint")
+    po.add_argument("file")
+    po.add_argument("--speech-peak", type=float, default=-6.0)
+    po.add_argument("--gap", type=float, default=2.0)
+    po.add_argument("--denoise", default="auto", choices=["auto", "on", "off"])
+    po.add_argument("--out", default=None)
+
     pv = sub.add_parser("viewer", help="start de A/B-viewer")
     pv.add_argument("--port", type=int, default=None)
 
@@ -91,6 +98,16 @@ def main() -> None:
             print("whisper:", json.dumps({k: v for k, v in res["report"]["asr"].items()
                                           if not k.startswith("transcript")},
                                          ensure_ascii=False))
+
+    elif args.cmd == "optimize":
+        from audio_improve_toolkit import server
+
+        res = server.optimize_audio(args.file, speech_peak_db=args.speech_peak,
+                                    music_gap_db=args.gap, denoise=args.denoise,
+                                    out_path=args.out)
+        print(f"sessie: {res['session_id']}")
+        for r in res["rationale"]:
+            print(f"  {r}")
 
     elif args.cmd == "viewer":
         from audio_improve_toolkit.viewer.server import main as viewer_main

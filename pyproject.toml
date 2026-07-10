@@ -26,6 +26,9 @@ ai = [
 asr = [
     "openai-whisper>=20231117",
 ]
+enhance = [
+    "clearvoice>=0.1.2",
+]
 
 [project.scripts]
 ait = "audio_improve_toolkit.cli:main"

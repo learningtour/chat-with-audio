@@ -286,6 +286,51 @@ def list_sessions(session_id: str | None = None) -> dict:
 
 
 @mcp.tool()
+def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
+                   max_iterations: int = 4, denoise: str = "auto",
+                   out_path: str | None = None) -> dict:
+    """Nachtrun-optimalisatie: draai meerdere pijplijnvarianten en laat de beste winnen.
+
+    Elke variant (EQ-, leveler-, compressor- en dereverb-combinaties) doorloopt
+    de volledige verfijnlus en wordt objectief gescoord: Whisper-woordretentie en
+    -zekerheid (verstaanbaarheid) plus afwijking van de spraakpiek-/balansdoelen.
+    Traag maar grondig; het rapport bevat de volledige ranglijst zodat je in de
+    chat kunt zien waarom de winnaar won en gericht kunt bijsturen.
+    """
+    from audio_improve_toolkit import optimize as optimize_mod
+
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    y, info = optimize_mod.optimize(x, sr, speech_peak_db=speech_peak_db,
+                                    music_gap_db=music_gap_db,
+                                    max_iterations=max_iterations, denoise=denoise)
+    m1 = analysis.analyze(y, sr)
+    rep = info["report"]
+    rationale = [f"Optimalisatie over {len(rep['ranking'])} varianten; winnaar: "
+                 f"'{rep['winner']}'."]
+    for r in rep["ranking"][:5]:
+        asr_txt = (f", retentie {r['asr']['word_retention']:.0%}" if r.get("asr") else "")
+        rationale.append(f"  {r['name']}: score {r['score']}{asr_txt}")
+    rationale.extend(rep["refine_report"].get("decisions", []))
+    session = sessions.create_session(file_path, x, sr, m0, y, m1, info["steps"],
+                                      rationale, "speech",
+                                      label=f"{Path(file_path).name} — geoptimaliseerd "
+                                            f"({rep['winner']})")
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "report": rep,
+        "rationale": rationale,
+        "deltas": session["deltas"],
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def transcribe_audio(file_path: str, model_size: str = "small", language: str = "nl",
                      start_s: float | None = None, end_s: float | None = None) -> dict:
     """Transcribeer (een deel van) een audiobestand met Whisper.

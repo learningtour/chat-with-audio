@@ -72,20 +72,15 @@ def _step_denoise(x, sr, strength_db: float = 12.0, method: str = "spectral"):
     return dsp.spectral_denoise(x, sr, reduction_db=strength_db)
 
 
-def _step_smart_denoise(x, sr, speech_strength_db: float = 24.0,
-                        music_strength_db: float = 6.0,
-                        silence_strength_db: float = 18.0, fade_ms: float = 60.0):
-    """Segment-gestuurde ontruising: AI (DeepFilterNet) op spraak, milde spectral
-    gating op muziek, stevige reductie op stiltes. Segmenten worden met
-    crossfades weer aaneengesmeed."""
+def _assemble_segments(x2: np.ndarray, sr: int, process_fn, fade_ms: float = 60.0):
+    """Verwerk de tijdlijn per segment (process_fn(chunk, kind) -> chunk of None
+    voor 'laat origineel') en smeed alles met crossfades weer aaneen."""
     from audio_improve_toolkit.segments import classify_segments
 
-    x2 = x[None, :] if x.ndim == 1 else x
     n = x2.shape[1]
     segs = classify_segments(x2, sr)
     fade = max(1, int(fade_ms / 1000 * sr))
     pad = max(fade, int(0.3 * sr))
-    ai_ok = dsp.ai_denoise_available()
 
     out = np.zeros_like(x2, dtype=np.float64)
     wsum = np.zeros(n, dtype=np.float64)
@@ -95,19 +90,9 @@ def _step_smart_denoise(x, sr, speech_strength_db: float = 24.0,
             continue
         aa, bb = max(0, a - pad), min(n, b + pad)
         chunk = x2[:, aa:bb]
-        kind = seg["kind"]
-        if kind == "speech" and speech_strength_db > 0:
-            if ai_ok:
-                proc = dsp.ai_denoise(chunk, sr, strength_db=speech_strength_db)
-            else:
-                proc = dsp.spectral_denoise(chunk, sr,
-                                            reduction_db=min(speech_strength_db, 18))
-        elif kind == "music" and music_strength_db > 0:
-            proc = dsp.spectral_denoise(chunk, sr, reduction_db=music_strength_db)
-        elif kind == "silence" and silence_strength_db > 0:
-            proc = dsp.spectral_denoise(chunk, sr, reduction_db=silence_strength_db)
-        else:
-            proc = np.asarray(chunk, dtype=np.float32)
+        proc = process_fn(chunk, seg["kind"])
+        if proc is None:
+            proc = chunk
         w = np.ones(bb - aa)
         ramp = max(1, min(fade, (bb - aa) // 2))
         if aa > 0:
@@ -121,6 +106,44 @@ def _step_smart_denoise(x, sr, speech_strength_db: float = 24.0,
     out[:, holes] = x2[:, holes]
     wsum[holes] = 1.0
     return (out / wsum[None, :]).astype(np.float32)
+
+
+def _step_smart_denoise(x, sr, speech_strength_db: float = 24.0,
+                        music_strength_db: float = 6.0,
+                        silence_strength_db: float = 18.0, fade_ms: float = 60.0):
+    """Segment-gestuurde ontruising: AI (DeepFilterNet) op spraak, milde spectral
+    gating op muziek, stevige reductie op stiltes."""
+    x2 = x[None, :] if x.ndim == 1 else x
+    ai_ok = dsp.ai_denoise_available()
+
+    def process(chunk, kind):
+        if kind == "speech" and speech_strength_db > 0:
+            if ai_ok:
+                return dsp.ai_denoise(chunk, sr, strength_db=speech_strength_db)
+            return dsp.spectral_denoise(chunk, sr,
+                                        reduction_db=min(speech_strength_db, 18))
+        if kind == "music" and music_strength_db > 0:
+            return dsp.spectral_denoise(chunk, sr, reduction_db=music_strength_db)
+        if kind == "silence" and silence_strength_db > 0:
+            return dsp.spectral_denoise(chunk, sr, reduction_db=silence_strength_db)
+        return None
+
+    return _assemble_segments(x2, sr, process, fade_ms)
+
+
+def _step_dereverb(x, sr, fade_ms: float = 60.0):
+    """Dereverberatie (ClearVoice MossFormer2) op de spraaksegmenten; muziek en
+    stilte blijven onaangeroerd. Vereist het [enhance]-extra."""
+    from audio_improve_toolkit.dsp import dereverb as drv
+
+    if not drv.is_available():
+        raise RuntimeError(drv.INSTALL_HINT)
+    x2 = x[None, :] if x.ndim == 1 else x
+
+    def process(chunk, kind):
+        return drv.dereverb(chunk, sr) if kind == "speech" else None
+
+    return _assemble_segments(x2, sr, process, fade_ms)
 
 
 def _step_gate(x, sr, threshold_db: float, attack_ms: float = 5.0,
@@ -190,6 +213,7 @@ STEP_REGISTRY = {
     "gain": _step_gain,
     "denoise": _step_denoise,
     "smart_denoise": _step_smart_denoise,
+    "dereverb": _step_dereverb,
     "gate": _step_gate,
     "compressor": _step_compressor,
     "leveler": _step_leveler,

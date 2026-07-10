@@ -86,7 +86,7 @@ def _speech_snr_db(x: np.ndarray, sr: int, speech_slices: list[slice]) -> float 
 def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
            music_gap_db: float = 2.0, max_iterations: int = 5,
            denoise: str = "auto", tone: bool = True, silence_duck_db: float = 18.0,
-           asr_check: bool = True,
+           asr_check: bool = True, tuning: dict | None = None,
            progress=None) -> tuple[np.ndarray, dict]:
     """Verfijn tot spraakpieken en spraak/muziek-balans op de millimeter kloppen.
 
@@ -94,6 +94,9 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
     bevestigt dat het de transcribeerbaarheid niet schaadt), "on" of "off".
     Met asr_check en het [asr]-extra wordt het eindresultaat altijd op
     transcribeerbaarheid vergeleken met het origineel (report["asr"]).
+
+    tuning (voor het optimalisatie-harnas): {"eq_bands": [...], "leveler": {...},
+    "compressor": {...}, "pre_extra": [steps na de highpass, bv. dereverb]}.
     """
     from audio_improve_toolkit import asr
 
@@ -117,11 +120,13 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
                                 "overgeslagen (het restgeluid is vooral zaalgalm, "
                                 "daar helpt een denoiser niet tegen).")
 
+    tuning = tuning or {}
     pre_steps: list[dict] = [{"type": "highpass", "freq": 80}]
+    pre_steps.extend(tuning.get("pre_extra", []))
     if use_denoise:
         pre_steps.append({"type": "smart_denoise", "speech_strength_db": 100})
     if tone:
-        pre_steps.append({"type": "eq", "bands": [
+        pre_steps.append({"type": "eq", "bands": tuning.get("eq_bands") or [
             {"type": "peaking", "freq": 300, "gain_db": -3.0, "q": 1.2},
             {"type": "peaking", "freq": 3150, "gain_db": 3.5, "q": 0.9},  # verstaanbaarheid
             {"type": "highshelf", "freq": 8000, "gain_db": 2.0, "q": 0.707},
@@ -155,10 +160,12 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
         loop_steps: list[dict] = []
         if has_speech and has_music:
             loop_steps.append({"type": "leveler", "target_db": -18.0,
-                               "max_boost_db": 20.0, "max_cut_db": round(cut, 1)})
+                               "max_boost_db": 20.0, "max_cut_db": round(cut, 1),
+                               **tuning.get("leveler", {})})
         # dichter op de spraak: egaler = beter verstaanbaar
         loop_steps.append({"type": "compressor", "threshold_db": -14.0, "ratio": 2.5,
-                           "attack_ms": 5.0, "release_ms": 180.0})
+                           "attack_ms": 5.0, "release_ms": 180.0,
+                           **tuning.get("compressor", {})})
         loop_steps.append({"type": "loudness_normalize",
                            "target_lufs": round(lufs_t, 2), "true_peak_db": -1.5})
         y, loop_resolved = chain.run_chain(x_clean, sr, loop_steps)
