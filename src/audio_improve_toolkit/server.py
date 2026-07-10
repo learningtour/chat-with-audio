@@ -288,6 +288,51 @@ def list_sessions(session_id: str | None = None) -> dict:
 
 
 @mcp.tool()
+def match_reference(file_path: str, reference_path: str, strength: float = 1.0,
+                    max_db: float = 6.0, match_loudness: bool = True,
+                    out_path: str | None = None) -> dict:
+    """Laat een opname klinken als een referentiebestand ("klink zoals dit").
+
+    Vergelijkt het spectrum in 1/3-octaafbanden en corrigeert het verschil met
+    een begrensde match-EQ (max_db per band), plus optioneel loudness-match naar
+    de referentie. strength 0-1 regelt hoe ver richting de referentie (0.5 =
+    halverwege). Ideaal om afleveringen/opnamedagen consistent te maken.
+    """
+    from audio_improve_toolkit import match as match_mod
+
+    x, sr = io.load_audio(file_path)
+    ref, ref_sr = io.load_audio(reference_path)
+    m0 = analysis.analyze(x, sr)
+    y, info = match_mod.match_reference(x, sr, ref, ref_sr, strength=strength,
+                                        max_db=max_db, match_loudness=match_loudness)
+    m1 = analysis.analyze(y, sr)
+    rationale = [f"Spectraal gematcht aan {Path(reference_path).name} "
+                 f"(sterkte {strength:.0%}, begrensd op ±{max_db:.0f} dB per band)."]
+    if info["eq_bands"]:
+        rationale.append("Match-EQ: " + ", ".join(info["eq_description"]) + ".")
+    else:
+        rationale.append("Spectra kwamen al vrijwel overeen; geen EQ nodig.")
+    if info.get("loudness"):
+        rationale.append(f"Loudness gematcht naar {info['loudness'].get('lufs_after')} LUFS "
+                         "(true-peak-bewaakt).")
+    steps = ([{"type": "eq", "bands": info["eq_bands"]}] if info["eq_bands"] else [])
+    session = sessions.create_session(file_path, x, sr, m0, y, m1, steps, rationale,
+                                      None, label=f"{Path(file_path).name} — match")
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "match": info["eq_description"],
+        "rationale": rationale,
+        "deltas": session["deltas"],
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def separate_stems(file_path: str, out_dir: str | None = None) -> dict:
     """Splits muziek in stems: vocals, drums, bass en other (Demucs AI-model).
 

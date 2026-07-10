@@ -5,7 +5,7 @@ import asyncio
 from audio_improve_toolkit import server
 
 EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudness",
-            "apply_chain", "repair_audio", "refine_audio", "optimize_audio",
+            "apply_chain", "repair_audio", "match_reference", "refine_audio", "optimize_audio",
             "transcribe_audio", "separate_stems", "rebalance_music",
             "list_sessions", "open_viewer"}
 

@@ -12,7 +12,7 @@ baanbrekend, elk productiehuis wil dit downloaden." Werkwijze: elke feature af
       (incl. karaoke = vocals -60 dB); A/B-sessie voor rebalance
 - [x] 3. Residu-beluistering in de viewer: derde knop "R - verschil" =
       loudness-gematcht verschil tussen origineel en bewerking (artefact-check)
-- [ ] 4. Reference matching: match_reference(file, reference) - 1/3-octaaf
+- [x] 4. Reference matching: match_reference(file, reference) - 1/3-octaaf
       spectrale match-EQ (begrensd) + loudness match
 - [ ] 5. Auto-de-esser (spectraal, alleen spraaksegmenten) + resonantiedetectie
       -> notches; opnemen in improve-regels
