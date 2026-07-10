@@ -25,6 +25,14 @@ def main() -> None:
     pi.add_argument("--denoise-method", default="auto", choices=["auto", "spectral", "ai"])
     pi.add_argument("--out", default=None, help="exportpad (formaat volgt de extensie)")
 
+    pr = sub.add_parser("refine", help="iteratief verfijnen tot doelen kloppen")
+    pr.add_argument("file")
+    pr.add_argument("--speech-peak", type=float, default=-6.0)
+    pr.add_argument("--gap", type=float, default=2.0, help="muziek t.o.v. spraak (dB)")
+    pr.add_argument("--iterations", type=int, default=5)
+    pr.add_argument("--no-denoise", action="store_true")
+    pr.add_argument("--out", default=None)
+
     pv = sub.add_parser("viewer", help="start de A/B-viewer")
     pv.add_argument("--port", type=int, default=None)
 
@@ -67,6 +75,18 @@ def main() -> None:
         for r in rationale:
             print(f"  - {r}")
         print("deltas:", json.dumps(session["deltas"], ensure_ascii=False))
+
+    elif args.cmd == "refine":
+        from audio_improve_toolkit import server
+
+        res = server.refine_audio(args.file, speech_peak_db=args.speech_peak,
+                                  music_gap_db=args.gap, max_iterations=args.iterations,
+                                  denoise=not args.no_denoise, out_path=args.out)
+        print(f"sessie: {res['session_id']}")
+        for r in res["rationale"]:
+            print(f"  - {r}")
+        print("eindmeting:", json.dumps(res["report"]["final_measurements"],
+                                        ensure_ascii=False))
 
     elif args.cmd == "viewer":
         from audio_improve_toolkit.viewer.server import main as viewer_main

@@ -72,6 +72,57 @@ def _step_denoise(x, sr, strength_db: float = 12.0, method: str = "spectral"):
     return dsp.spectral_denoise(x, sr, reduction_db=strength_db)
 
 
+def _step_smart_denoise(x, sr, speech_strength_db: float = 100.0,
+                        music_strength_db: float = 6.0,
+                        silence_strength_db: float = 18.0, fade_ms: float = 120.0):
+    """Segment-gestuurde ontruising: AI (DeepFilterNet) op spraak, milde spectral
+    gating op muziek, stevige reductie op stiltes. Segmenten worden met
+    crossfades weer aaneengesmeed."""
+    from audio_improve_toolkit.segments import classify_segments
+
+    x2 = x[None, :] if x.ndim == 1 else x
+    n = x2.shape[1]
+    segs = classify_segments(x2, sr)
+    fade = max(1, int(fade_ms / 1000 * sr))
+    pad = max(fade, int(0.3 * sr))
+    ai_ok = dsp.ai_denoise_available()
+
+    out = np.zeros_like(x2, dtype=np.float64)
+    wsum = np.zeros(n, dtype=np.float64)
+    for seg in segs:
+        a, b = int(seg["start_s"] * sr), int(seg["end_s"] * sr)
+        if b <= a:
+            continue
+        aa, bb = max(0, a - pad), min(n, b + pad)
+        chunk = x2[:, aa:bb]
+        kind = seg["kind"]
+        if kind == "speech" and speech_strength_db > 0:
+            if ai_ok:
+                proc = dsp.ai_denoise(chunk, sr, strength_db=speech_strength_db)
+            else:
+                proc = dsp.spectral_denoise(chunk, sr,
+                                            reduction_db=min(speech_strength_db, 18))
+        elif kind == "music" and music_strength_db > 0:
+            proc = dsp.spectral_denoise(chunk, sr, reduction_db=music_strength_db)
+        elif kind == "silence" and silence_strength_db > 0:
+            proc = dsp.spectral_denoise(chunk, sr, reduction_db=silence_strength_db)
+        else:
+            proc = np.asarray(chunk, dtype=np.float32)
+        w = np.ones(bb - aa)
+        ramp = max(1, min(fade, (bb - aa) // 2))
+        if aa > 0:
+            w[:ramp] = np.linspace(0.0, 1.0, ramp)
+        if bb < n:
+            w[-ramp:] = np.minimum(w[-ramp:], np.linspace(1.0, 0.0, ramp))
+        out[:, aa:bb] += np.asarray(proc, dtype=np.float64) * w
+        wsum[aa:bb] += w
+
+    holes = wsum <= 1e-9
+    out[:, holes] = x2[:, holes]
+    wsum[holes] = 1.0
+    return (out / wsum[None, :]).astype(np.float32)
+
+
 def _step_gate(x, sr, threshold_db: float, attack_ms: float = 5.0,
                release_ms: float = 120.0, hold_ms: float = 50.0, range_db: float = 12.0):
     return dsp.noise_gate(x, sr, threshold_db, attack_ms, release_ms, hold_ms, range_db)
@@ -138,6 +189,7 @@ STEP_REGISTRY = {
     "eq": _step_eq,
     "gain": _step_gain,
     "denoise": _step_denoise,
+    "smart_denoise": _step_smart_denoise,
     "gate": _step_gate,
     "compressor": _step_compressor,
     "leveler": _step_leveler,

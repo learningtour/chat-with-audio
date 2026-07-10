@@ -217,6 +217,56 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None) 
 
 
 @mcp.tool()
+def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
+                 max_iterations: int = 5, denoise: bool = True, tone: bool = True,
+                 out_path: str | None = None) -> dict:
+    """Iteratieve verfijning tot spraakniveau en spraak/muziek-balans exact kloppen.
+
+    Segmenteert het bestand (spraak/muziek/stilte), ontruist per segment (AI op
+    spraak, mild op muziek), en draait dan een meet-en-bijstuur-lus: leveler +
+    compressor + loudness, net zo lang tot de spraakpieken op speech_peak_db
+    (dBFS) zitten en de muziek music_gap_db daarboven. Het resultaat bevat de
+    volledige meetgeschiedenis per iteratie ('report'), zodat je in de chat kunt
+    beoordelen wat er gebeurde en gericht kunt bijsturen.
+    """
+    from audio_improve_toolkit import refine as refine_mod
+
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    y, info = refine_mod.refine(x, sr, speech_peak_db=speech_peak_db,
+                                music_gap_db=music_gap_db,
+                                max_iterations=max_iterations,
+                                denoise=denoise, tone=tone)
+    m1 = analysis.analyze(y, sr)
+    rep = info["report"]
+    rationale = [f"Iteratieve verfijning ({len(rep['iterations'])} iteraties, "
+                 f"{'geconvergeerd' if rep['converged'] else 'maximum bereikt'}): "
+                 f"doel spraakpiek {speech_peak_db} dBFS, muziek {music_gap_db:+.1f} dB daarbij."]
+    for it in rep["iterations"]:
+        e = it["errors"]
+        rationale.append(f"Iteratie {it['iteration']}: spraakpiek-afwijking "
+                         f"{e['speech_peak']:+.1f} dB, balans-afwijking {e['balance_gap']:+.1f} dB.")
+    session = sessions.create_session(file_path, x, sr, m0, y, m1, info["steps"],
+                                      rationale, "speech",
+                                      label=f"{Path(file_path).name} — verfijnd")
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "report": rep,
+        "chain": info["steps"],
+        "rationale": rationale,
+        "metrics_before": m0,
+        "metrics_after": m1,
+        "deltas": session["deltas"],
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def list_sessions(session_id: str | None = None) -> dict:
     """Toon eerdere sessies, of met session_id de volledige voor/na-vergelijking.
 

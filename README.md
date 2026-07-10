@@ -22,6 +22,10 @@ Claude (chat)  ── MCP (stdio) ──>  Python-orchestratie ──> C++ DSP-k
 - **"Trek het level op zonder te clippen"** — loudness-normalisatie (BS.1770) met
   true-peak-limiter.
 - **"Knip 3 dB rond 300 Hz weg en comprimeer licht"** — expliciete keten via `apply_chain`.
+- **"Zet de spraak op −6 en de muziek in balans"** — `refine_audio`: segmenteert
+  spraak/muziek/stilte, ontruist per segment (AI op spraak), en draait een
+  meet-en-bijstuur-lus tot de doelen op de decibel nauwkeurig kloppen. De
+  meetgeschiedenis per iteratie komt terug in de chat.
 - **"Open de viewer"** / **"Wat is er precies veranderd?"** — A/B-vergelijking; Claude
   leest dezelfde sessiedata als de viewer toont.
 
@@ -78,7 +82,9 @@ origineel, resultaat, analyses, keten + rationale, golfvormen en spectrogrammen.
 | DSP-dispatch | `src/audio_improve_toolkit/dsp/` | native ↔ scipy-fallback, spectral gating (`spectral_nr.py`), DeepFilterNet (`ai_nr.py`) |
 | Analyse | `analysis.py` | LUFS/LRA (pyloudnorm), true peak, SNR, ruisvloer, brom, clipping, spectrum, scores + issues |
 | Beslislogica | `improve.py` | spraak/muziek-detectie, regels → keten + rationale |
-| Keten | `chain.py` | stap-registry, uitvoering, loudness-normalisatie |
+| Segmentatie | `segments.py` | spraak/muziek/stilte-tijdlijn (niveau-Otsu + spraakmodulatie) |
+| Verfijnlus | `refine.py` | iteratief meten → bijsturen (spraakpiek, balans, pauzevloer) |
+| Keten | `chain.py` | stap-registry (incl. leveler, smart_denoise), loudness-normalisatie |
 | MCP-server | `server.py` | 7 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B-speler |
 

@@ -24,7 +24,13 @@ uv run ait viewer                                 # viewer op :8471
   gebouwd, anders `fallback.py` (scipy; identieke signaturen, blok-gebaseerde
   dynamics). `spectral_nr.py` = Tier A denoise; `ai_nr.py` = Tier B (DeepFilterNet).
 - `analysis.py` → metrics-dict + `score_and_issues()`; `improve.py` → profiel-
-  detectie + regels → (steps, rationale); `chain.py` → `STEP_REGISTRY` + uitvoering.
+  detectie + regels → (steps, rationale); `chain.py` → `STEP_REGISTRY` + uitvoering
+  (incl. `leveler` en segment-gestuurde `smart_denoise`).
+- `segments.py` → spraak/muziek/stilte-segmentatie (primair niveau-Otsu; modulatie-
+  ritme als fallback). `refine.py` → iteratieve meet-en-bijstuur-lus (`refine_audio`-
+  tool): AI-ontruising eenmalig vooraf, dan leveler/loudness bijsturen tot
+  spraakpiek en balans kloppen; stiltesegmenten worden na afloop teruggedrukt
+  (_duck_silence) omdat de leveler ze anders meetilt.
 - `server.py` — 7 MCP-tools; `sessions.py` — sessiemappen onder
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isoleren dit automatisch).
 - `viewer/server.py` — stdlib http.server op 127.0.0.1:8471 (env `AIT_VIEWER_PORT`);

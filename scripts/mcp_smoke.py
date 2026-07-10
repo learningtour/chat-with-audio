@@ -17,7 +17,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 EXPECTED_TOOLS = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudness",
-                  "apply_chain", "list_sessions", "open_viewer"}
+                  "apply_chain", "refine_audio", "list_sessions", "open_viewer"}
 
 
 async def main() -> None:
