@@ -72,9 +72,9 @@ def _step_denoise(x, sr, strength_db: float = 12.0, method: str = "spectral"):
     return dsp.spectral_denoise(x, sr, reduction_db=strength_db)
 
 
-def _step_smart_denoise(x, sr, speech_strength_db: float = 100.0,
+def _step_smart_denoise(x, sr, speech_strength_db: float = 24.0,
                         music_strength_db: float = 6.0,
-                        silence_strength_db: float = 18.0, fade_ms: float = 120.0):
+                        silence_strength_db: float = 18.0, fade_ms: float = 60.0):
     """Segment-gestuurde ontruising: AI (DeepFilterNet) op spraak, milde spectral
     gating op muziek, stevige reductie op stiltes. Segmenten worden met
     crossfades weer aaneengesmeed."""

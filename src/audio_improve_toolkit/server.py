@@ -219,7 +219,7 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None) 
 @mcp.tool()
 def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
                  max_iterations: int = 5, denoise: bool = True, tone: bool = True,
-                 out_path: str | None = None) -> dict:
+                 speech_denoise_db: float = 24.0, out_path: str | None = None) -> dict:
     """Iteratieve verfijning tot spraakniveau en spraak/muziek-balans exact kloppen.
 
     Segmenteert het bestand (spraak/muziek/stilte), ontruist per segment (AI op
@@ -236,7 +236,8 @@ def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: flo
     y, info = refine_mod.refine(x, sr, speech_peak_db=speech_peak_db,
                                 music_gap_db=music_gap_db,
                                 max_iterations=max_iterations,
-                                denoise=denoise, tone=tone)
+                                denoise=denoise, tone=tone,
+                                speech_denoise_db=speech_denoise_db)
     m1 = analysis.analyze(y, sr)
     rep = info["report"]
     rationale = [f"Iteratieve verfijning ({len(rep['iterations'])} iteraties, "

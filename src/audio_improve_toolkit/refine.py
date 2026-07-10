@@ -72,8 +72,13 @@ def _duck_silence(y: np.ndarray, sr: int, segs: list[dict], duck_db: float = 18.
 def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
            music_gap_db: float = 2.0, max_iterations: int = 5,
            denoise: bool = True, tone: bool = True, silence_duck_db: float = 18.0,
+           speech_denoise_db: float = 24.0,
            progress=None) -> tuple[np.ndarray, dict]:
-    """Verfijn tot spraakpieken en spraak/muziek-balans op de millimeter kloppen."""
+    """Verfijn tot spraakpieken en spraak/muziek-balans op de millimeter kloppen.
+
+    speech_denoise_db begrenst de AI-ontruising: vol vermogen (100) klinkt op
+    galmende opnames waterig/faserig; ~24 dB houdt het natuurlijk.
+    """
     x2 = x[None, :] if x.ndim == 1 else x
     segs = classify_segments(x2, sr)
     has_speech = any(s["kind"] == "speech" for s in segs)
@@ -82,12 +87,13 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
     # Dure bulk-stappen (AI-ontruising) een keer vooraf; de lus stuurt de rest.
     pre_steps: list[dict] = [{"type": "highpass", "freq": 80}]
     if denoise:
-        pre_steps.append({"type": "smart_denoise"})
+        pre_steps.append({"type": "smart_denoise",
+                          "speech_strength_db": speech_denoise_db})
     if tone:
         pre_steps.append({"type": "eq", "bands": [
-            {"type": "peaking", "freq": 300, "gain_db": -2.5, "q": 1.2},
-            {"type": "peaking", "freq": 4000, "gain_db": 2.5, "q": 1.0},
-            {"type": "highshelf", "freq": 8000, "gain_db": 2.5, "q": 0.707},
+            {"type": "peaking", "freq": 300, "gain_db": -3.0, "q": 1.2},
+            {"type": "peaking", "freq": 3150, "gain_db": 3.5, "q": 0.9},  # verstaanbaarheid
+            {"type": "highshelf", "freq": 8000, "gain_db": 2.0, "q": 0.707},
         ]})
     if progress:
         progress("voorbewerking (ontruising per segment)")
@@ -101,8 +107,9 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
         if has_speech and has_music:
             loop_steps.append({"type": "leveler", "target_db": -18.0,
                                "max_boost_db": 20.0, "max_cut_db": round(cut, 1)})
-        loop_steps.append({"type": "compressor", "threshold_db": -10.0, "ratio": 3.0,
-                           "attack_ms": 3.0, "release_ms": 150.0})
+        # dichter op de spraak: egaler = beter verstaanbaar
+        loop_steps.append({"type": "compressor", "threshold_db": -14.0, "ratio": 2.5,
+                           "attack_ms": 5.0, "release_ms": 180.0})
         loop_steps.append({"type": "loudness_normalize",
                            "target_lufs": round(lufs_t, 2), "true_peak_db": -1.5})
         y, loop_resolved = chain.run_chain(x_clean, sr, loop_steps)
