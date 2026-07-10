@@ -91,6 +91,18 @@ def build_improve_chain(m: dict, profile: str = "auto", target_lufs: float | Non
         rationale.append(f"Ruisvloer {m['noise_floor_db']} dB: zachte noise gate op "
                          f"{thr:.0f} dB maakt pauzes stil.")
 
+    for res in m.get("resonances", [])[:2]:
+        depth = -min(res["excess_db"] * 0.6, 6.0)
+        steps.append({"type": "eq", "bands": [{"type": "peaking", "freq": res["freq"],
+                                               "gain_db": round(depth, 1), "q": 8.0}]})
+        rationale.append(f"Resonantie op {res['freq']:.0f} Hz (+{res['excess_db']} dB "
+                         f"boven het spectrum): smalle cut van {depth:.1f} dB.")
+
+    if profile == "speech":
+        steps.append({"type": "deess"})
+        rationale.append("De-esser op de spraakdelen: scherpe s-klanken (5.5-9.5 kHz) "
+                         "worden alleen gedempt op de frames waar ze uitschieten.")
+
     eq_bands: list[dict] = []
     tilt = m.get("tilt_db_per_octave", -4)
     if tilt < -6:

@@ -147,6 +147,21 @@ def _step_smart_denoise(x, sr, speech_strength_db: float = 24.0,
     return _assemble_segments(x2, sr, process, fade_ms)
 
 
+def _step_deess(x, sr, strength_db: float = 8.0, sensitivity: float = 2.2,
+                fade_ms: float = 60.0):
+    """De-esser op de spraaksegmenten; muziek blijft onaangeroerd."""
+    from audio_improve_toolkit.dsp.deess import deess
+
+    x2 = x[None, :] if x.ndim == 1 else x
+
+    def process(chunk, kind):
+        if kind == "speech":
+            return deess(chunk, sr, strength_db=strength_db, sensitivity=sensitivity)
+        return None
+
+    return _assemble_segments(x2, sr, process, fade_ms)
+
+
 def _step_dereverb(x, sr, fade_ms: float = 60.0):
     """Dereverberatie (ClearVoice MossFormer2) op de spraaksegmenten; muziek en
     stilte blijven onaangeroerd. Vereist het [enhance]-extra."""
@@ -231,6 +246,7 @@ STEP_REGISTRY = {
     "declick": _step_declick,
     "denoise": _step_denoise,
     "smart_denoise": _step_smart_denoise,
+    "deess": _step_deess,
     "dereverb": _step_dereverb,
     "gate": _step_gate,
     "compressor": _step_compressor,

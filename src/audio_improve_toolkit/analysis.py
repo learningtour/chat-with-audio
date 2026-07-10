@@ -85,6 +85,38 @@ def _detect_hum(mono: np.ndarray, sr: int) -> dict:
     return best
 
 
+def _detect_resonances(mono: np.ndarray, sr: int, lo: float = 150.0,
+                       hi: float = 4500.0, min_excess_db: float = 8.0,
+                       max_count: int = 3) -> list[dict]:
+    """Smalle pieken die boven het gladgestreken spectrum uitsteken (dozige
+    roomresonanties, pieptonen)."""
+    from scipy.ndimage import median_filter
+
+    nper = int(min(mono.shape[0], 8192))
+    if nper < 2048:
+        return []
+    f, p = welch(mono, fs=sr, nperseg=nper)
+    pdb = 10.0 * np.log10(p + 1e-20)
+    smooth = median_filter(pdb, size=max(9, len(f) // 40) | 1, mode="nearest")
+    excess = pdb - smooth
+    sel = (f >= lo) & (f <= min(hi, sr / 2 - 500))
+    found = []
+    idx = np.where(sel & (excess > min_excess_db))[0]
+    for i in idx:
+        if 0 < i < len(f) - 1 and pdb[i] >= pdb[i - 1] and pdb[i] >= pdb[i + 1]:
+            found.append({"freq": round(float(f[i]), 0),
+                          "excess_db": round(float(excess[i]), 1)})
+    found.sort(key=lambda r: -r["excess_db"])
+    # dichte buren (zelfde resonantie over meerdere bins) ontdubbelen
+    dedup: list[dict] = []
+    for r in found:
+        if all(abs(r["freq"] - d["freq"]) > d["freq"] * 0.15 for d in dedup):
+            dedup.append(r)
+        if len(dedup) >= max_count:
+            break
+    return dedup
+
+
 def _spectral(mono: np.ndarray, sr: int) -> dict:
     nper = int(min(mono.shape[0], 4096))
     f, p = welch(mono, fs=sr, nperseg=nper)
@@ -162,6 +194,7 @@ def analyze(x: np.ndarray, sr: int) -> dict:
         "clip_events": clip_events,
         "dc_offset": round(float(np.abs(x.mean(axis=1)).max()), 5),
         "hum": _detect_hum(mono, sr),
+        "resonances": _detect_resonances(mono, sr),
     }
     metrics.update(_spectral(mono, sr))
     return metrics

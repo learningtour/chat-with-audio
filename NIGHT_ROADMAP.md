@@ -14,7 +14,7 @@ baanbrekend, elk productiehuis wil dit downloaden." Werkwijze: elke feature af
       loudness-gematcht verschil tussen origineel en bewerking (artefact-check)
 - [x] 4. Reference matching: match_reference(file, reference) - 1/3-octaaf
       spectrale match-EQ (begrensd) + loudness match
-- [ ] 5. Auto-de-esser (spectraal, alleen spraaksegmenten) + resonantiedetectie
+- [x] 5. Auto-de-esser (spectraal, alleen spraaksegmenten) + resonantiedetectie
       -> notches; opnemen in improve-regels
 - [ ] 6. Batchverwerking: ait batch + MCP improve_folder
 - [ ] 7. Docs (README/CLAUDE.md), mcp_smoke bijwerken, ochtendrapport
