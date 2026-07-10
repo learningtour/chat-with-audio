@@ -29,6 +29,9 @@ asr = [
 enhance = [
     "clearvoice>=0.1.2",
 ]
+stems = [
+    "demucs>=4.0.1",
+]
 
 [project.scripts]
 ait = "audio_improve_toolkit.cli:main"

@@ -49,6 +49,11 @@ def build_improve_chain(m: dict, profile: str = "auto", target_lufs: float | Non
         f"(target {lufs_target} LUFS, true peak {t['true_peak_db']} dBTP)."
     ]
 
+    if m.get("clip_events", 0) > 0:
+        steps.append({"type": "declip"})
+        rationale.append(f"{m['clip_events']} clip-momenten gedetecteerd: golfvorm-"
+                         "reconstructie (declip) van de afgekapte toppen.")
+
     steps.append({"type": "highpass", "freq": t["hpf_hz"]})
     why = f"Highpass op {t['hpf_hz']:.0f} Hz tegen rumble en DC-offset"
     if m.get("dc_offset", 0) > 0.001:

@@ -66,6 +66,22 @@ def _step_gain(x, sr, gain_db: float):
     return dsp.gain(x, gain_db)
 
 
+def _step_declip(x, sr, max_gap_ms: float = 4.0):
+    from audio_improve_toolkit.dsp import repair
+
+    y, fixed = repair.declip(x, sr, max_gap_ms=max_gap_ms)
+    log.info("declip: %d regio's gereconstrueerd", fixed)
+    return y
+
+
+def _step_declick(x, sr, threshold: float = 6.0):
+    from audio_improve_toolkit.dsp import repair
+
+    y, fixed = repair.declick(x, sr, threshold=threshold)
+    log.info("declick: %d klikken gerepareerd", fixed)
+    return y
+
+
 def _step_denoise(x, sr, strength_db: float = 12.0, method: str = "spectral"):
     if method == "ai":
         return dsp.ai_denoise(x, sr, strength_db=strength_db)
@@ -211,6 +227,8 @@ STEP_REGISTRY = {
     "notch": _step_notch,
     "eq": _step_eq,
     "gain": _step_gain,
+    "declip": _step_declip,
+    "declick": _step_declick,
     "denoise": _step_denoise,
     "smart_denoise": _step_smart_denoise,
     "dereverb": _step_dereverb,

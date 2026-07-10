@@ -286,6 +286,29 @@ def list_sessions(session_id: str | None = None) -> dict:
 
 
 @mcp.tool()
+def repair_audio(file_path: str, declip: bool = True, declick: bool = True,
+                 out_path: str | None = None) -> dict:
+    """Repareer beschadigde audio: declip (reconstrueert afgekapte golftoppen via
+    spline-interpolatie) en declick (verwijdert korte impulsen/klikken).
+
+    Verandert verder niets aan klank of niveau; combineer met improve_audio of
+    refine_audio voor het volledige traject. Werkt ook op 32-bit float opnames
+    met capsule-oversturing (flat-tops boven 0 dBFS).
+    """
+    steps: list[dict] = []
+    rationale: list[str] = []
+    if declip:
+        steps.append({"type": "declip"})
+        rationale.append("Declip: afgekapte golftoppen gereconstrueerd.")
+    if declick:
+        steps.append({"type": "declick"})
+        rationale.append("Declick: impulsartefacten gerepareerd.")
+    if not steps:
+        raise ValueError("Niets te doen: declip en declick staan beide uit.")
+    return _process(file_path, steps, rationale, out_path=out_path)
+
+
+@mcp.tool()
 def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
                    max_iterations: int = 4, denoise: str = "auto",
                    out_path: str | None = None) -> dict:
