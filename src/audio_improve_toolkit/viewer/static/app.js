@@ -67,8 +67,21 @@ async function openSession(id) {
   $("btn-b").disabled = !hasB;
   setABButtons();
 
-  drawWave($("wave-a"), current.waveform_original);
-  if (hasB) drawWave($("wave-b"), current.waveform_processed);
+  // Monitoring-trim voor A: loudness-matched met B (eerlijk vergelijk van kárakter,
+  // niet van volume), en nooit boven full scale afspelen.
+  const pkA = wfPeak(current.waveform_original);
+  const lA = current.original?.metrics?.lufs_integrated;
+  const lB = current.processed?.metrics?.lufs_integrated;
+  trimA = 1;
+  if (hasB && lA != null && lB != null) trimA = Math.pow(10, (lB - lA) / 20);
+  else if (pkA > 1) trimA = 0.891 / pkA;
+  if (pkA * trimA > 0.98) trimA = 0.98 / pkA;
+  const tagA = document.querySelector("#wave-a").parentElement.querySelector(".tag");
+  tagA.textContent = Math.abs(20 * Math.log10(trimA)) > 0.5
+    ? `A · origineel (${(20 * Math.log10(trimA)).toFixed(1)} dB, loudness-matched)`
+    : "A · origineel";
+
+  redrawWaves(null);
   renderMetrics();
   renderChain();
   setSpec("original");
@@ -124,7 +137,15 @@ function setSpec(which) {
 }
 
 // ---- waveform ----
-function drawWave(canvas, wf, playPos = null) {
+function wfPeak(wf, gain = 1) {
+  if (!wf) return 0.01;
+  let p = 0.01;
+  for (let i = 0; i < wf.min.length; i++)
+    p = Math.max(p, Math.abs(wf.min[i] * gain), Math.abs(wf.max[i] * gain));
+  return p;
+}
+
+function drawWave(canvas, wf, playPos = null, gain = 1, ref = null) {
   if (!wf) return;
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.clientWidth || canvas.parentElement.clientWidth;
@@ -134,13 +155,12 @@ function drawWave(canvas, wf, playPos = null) {
   g.scale(dpr, dpr);
   g.clearRect(0, 0, w, h);
   const n = wf.min.length, mid = h / 2;
-  let peak = 0.01;
-  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(wf.min[i]), Math.abs(wf.max[i]));
+  const peak = ref || wfPeak(wf, gain);
   g.fillStyle = "#3f7fa8";
   for (let i = 0; i < n; i++) {
     const x = (i / n) * w;
-    const y1 = mid - (wf.max[i] / peak) * (mid - 4);
-    const y2 = mid - (wf.min[i] / peak) * (mid - 4);
+    const y1 = mid - (wf.max[i] * gain / peak) * (mid - 4);
+    const y2 = mid - (wf.min[i] * gain / peak) * (mid - 4);
     g.fillRect(x, y1, Math.max(w / n - 0.3, 0.7), Math.max(y2 - y1, 1));
   }
   if (playPos !== null && current) {
@@ -151,8 +171,13 @@ function drawWave(canvas, wf, playPos = null) {
 }
 
 function redrawWaves(pos) {
-  drawWave($("wave-a"), current.waveform_original, pos);
-  if (current.has_processed) drawWave($("wave-b"), current.waveform_processed, pos);
+  // Gedeelde schaal op afspeelniveau: verschillen in dynamiek/gate/level blijven zichtbaar.
+  const wA = current.waveform_original, wB = current.waveform_processed;
+  const ref = current.has_processed
+    ? Math.max(wfPeak(wA, trimA), wfPeak(wB))
+    : wfPeak(wA, trimA);
+  drawWave($("wave-a"), wA, pos, trimA, ref);
+  if (current.has_processed) drawWave($("wave-b"), wB, pos, 1, ref);
 }
 
 // ---- audio: gesynchroniseerde A/B ----
@@ -163,23 +188,7 @@ async function ensureBuffers() {
   if (!rawA) rawA = await (await fetch(`/files/${id}/original.wav`)).arrayBuffer();
   if (!rawB && current.has_processed)
     rawB = await (await fetch(`/files/${id}/processed.wav`)).arrayBuffer();
-  if (!bufA && rawA) {
-    bufA = await ctx.decodeAudioData(rawA.slice(0));
-    let peak = 0;
-    for (let c = 0; c < bufA.numberOfChannels; c++) {
-      const d = bufA.getChannelData(c);
-      for (let i = 0; i < d.length; i++) {
-        const v = Math.abs(d[i]);
-        if (v > peak) peak = v;
-      }
-    }
-    trimA = peak > 1 ? 0.891 / peak : 1;  // naar -1 dBFS voor eerlijke monitoring
-    if (trimA < 1) {
-      const db = (20 * Math.log10(trimA)).toFixed(1);
-      document.querySelector("#wave-a").parentElement.querySelector(".tag").textContent =
-        `A · origineel (${db} dB monitoring-trim)`;
-    }
-  }
+  if (!bufA && rawA) bufA = await ctx.decodeAudioData(rawA.slice(0));
   if (!bufB && rawB) bufB = await ctx.decodeAudioData(rawB.slice(0));
 }
 
