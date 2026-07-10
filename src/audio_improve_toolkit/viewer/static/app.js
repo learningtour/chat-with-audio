@@ -8,6 +8,7 @@ let bufA = null, bufB = null;
 let rawA = null, rawB = null;  // ArrayBuffers (gefetcht bij sessie-load)
 let srcA = null, srcB = null, gainA = null, gainB = null;
 let playing = false, startedAt = 0, offset = 0, listenB = true;
+let trimA = 1;  // monitoring-trim voor originelen die boven 0 dBFS pieken (32-bit float)
 
 const $ = (id) => document.getElementById(id);
 
@@ -162,7 +163,23 @@ async function ensureBuffers() {
   if (!rawA) rawA = await (await fetch(`/files/${id}/original.wav`)).arrayBuffer();
   if (!rawB && current.has_processed)
     rawB = await (await fetch(`/files/${id}/processed.wav`)).arrayBuffer();
-  if (!bufA && rawA) bufA = await ctx.decodeAudioData(rawA.slice(0));
+  if (!bufA && rawA) {
+    bufA = await ctx.decodeAudioData(rawA.slice(0));
+    let peak = 0;
+    for (let c = 0; c < bufA.numberOfChannels; c++) {
+      const d = bufA.getChannelData(c);
+      for (let i = 0; i < d.length; i++) {
+        const v = Math.abs(d[i]);
+        if (v > peak) peak = v;
+      }
+    }
+    trimA = peak > 1 ? 0.891 / peak : 1;  // naar -1 dBFS voor eerlijke monitoring
+    if (trimA < 1) {
+      const db = (20 * Math.log10(trimA)).toFixed(1);
+      document.querySelector("#wave-a").parentElement.querySelector(".tag").textContent =
+        `A · origineel (${db} dB monitoring-trim)`;
+    }
+  }
   if (!bufB && rawB) bufB = await ctx.decodeAudioData(rawB.slice(0));
 }
 
@@ -172,7 +189,7 @@ async function play() {
   if (!bufA) return;
   gainA = ctx.createGain(); gainB = ctx.createGain();
   gainA.connect(ctx.destination); gainB.connect(ctx.destination);
-  gainA.gain.value = listenB && bufB ? 0 : 1;
+  gainA.gain.value = listenB && bufB ? 0 : trimA;
   gainB.gain.value = listenB && bufB ? 1 : 0;
   srcA = ctx.createBufferSource(); srcA.buffer = bufA; srcA.connect(gainA);
   if (bufB) { srcB = ctx.createBufferSource(); srcB.buffer = bufB; srcB.connect(gainB); }
@@ -211,7 +228,7 @@ function setAB(toB) {
   setABButtons();
   if (playing && gainA && gainB) {
     const t = ctx.currentTime;
-    gainA.gain.setTargetAtTime(toB ? 0 : 1, t, 0.005);
+    gainA.gain.setTargetAtTime(toB ? 0 : trimA, t, 0.005);
     gainB.gain.setTargetAtTime(toB ? 1 : 0, t, 0.005);
   }
 }

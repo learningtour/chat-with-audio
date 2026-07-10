@@ -65,7 +65,11 @@ def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24") 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     x2 = x[None, :] if x.ndim == 1 else x
-    sf.write(str(path), np.clip(x2, -1.0, 1.0).T, sr, subtype=subtype)
+    # 32-bit float opnames kunnen boven 0 dBFS pieken; dan als FLOAT wegschrijven
+    # zodat de headroom behouden blijft in plaats van hard af te kappen.
+    if x2.size and float(np.abs(x2).max()) > 0.999:
+        subtype = "FLOAT"
+    sf.write(str(path), x2.T, sr, subtype=subtype)
     return path
 
 

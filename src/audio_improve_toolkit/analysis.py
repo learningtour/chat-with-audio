@@ -127,7 +127,14 @@ def analyze(x: np.ndarray, sr: int) -> dict:
         silence_thr = max(noise_floor + 6.0, signal_level - 30.0)
         silence_pct = float((frames < silence_thr).mean() * 100)
 
-    clip_mask = np.abs(mono) >= 0.999
+    if peak <= 1.001:
+        clip_mask = np.abs(mono) >= 0.999
+    else:
+        # 32-bit float opname met headroom boven 0 dBFS: dat is geen clipping.
+        # Alleen echte flat-tops (opeenvolgende identieke samples nabij de piek) tellen.
+        near_peak = np.abs(mono) >= 0.98 * peak
+        flat = np.concatenate([[False], np.diff(mono) == 0.0]) & near_peak
+        clip_mask = flat
     clipped = int(clip_mask.sum())
     runs = np.diff(np.concatenate([[0], clip_mask.astype(np.int8), [0]]))
     starts, ends = np.where(runs == 1)[0], np.where(runs == -1)[0]
@@ -223,6 +230,12 @@ def score_and_issues(m: dict, target_lufs: float = -15.0) -> tuple[dict, list[di
         issues.append({"severity": "medium", "code": "muddy",
                        "message": "Veel energie onder 250 Hz (dreun/modder).",
                        "suggestion": "improve_audio (highpass + peaking-cut rond 300 Hz)"})
+    if m.get("sample_peak_db", 0) > 0.5 and m.get("clip_events", 0) == 0:
+        issues.append({"severity": "medium", "code": "hot_float",
+                       "message": f"32-bit float opname met pieken tot "
+                                  f"{m['sample_peak_db']} dBFS boven nul — geen vervorming, "
+                                  "maar normaliseren is vereist voor gebruik/export.",
+                       "suggestion": "improve_audio of normalize_loudness"})
     if m.get("clip_events", 0) > 0:
         clarity -= 35
         issues.append({"severity": "high", "code": "clipping",
