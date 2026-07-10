@@ -270,6 +270,49 @@ def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: flo
     return result
 
 
+_AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".aiff", ".aif"}
+
+
+@mcp.tool()
+def improve_folder(dir_path: str, mode: str = "improve", profile: str = "auto",
+                   out_dir: str | None = None) -> dict:
+    """Batchverwerking: verbeter alle audiobestanden in een map in een keer.
+
+    mode: improve (snel, regelgestuurd) | refine (meet-en-bijstuur-lus) |
+    optimize (varianten-wedstrijd per bestand; traag maar maximaal). Elke
+    verwerking wordt een eigen sessie; out_dir exporteert de resultaten daar
+    in het bronformaat. Handig voor afleveringen, opnamedagen of archieven.
+    """
+    d = Path(dir_path).expanduser()
+    if not d.is_dir():
+        raise ValueError(f"Geen map: {d}")
+    files = sorted(p for p in d.iterdir()
+                   if p.suffix.lower() in _AUDIO_EXTS and not p.name.startswith("."))
+    if not files:
+        raise ValueError(f"Geen audiobestanden gevonden in {d} "
+                         f"(gezocht naar: {', '.join(sorted(_AUDIO_EXTS))})")
+    results, failures = [], []
+    for p in files:
+        out_path = str(Path(out_dir).expanduser() / p.name) if out_dir else None
+        try:
+            if mode == "improve":
+                r = improve_audio(str(p), profile=profile, out_path=out_path)
+            elif mode == "refine":
+                r = refine_audio(str(p), out_path=out_path)
+            elif mode == "optimize":
+                r = optimize_audio(str(p), out_path=out_path)
+            else:
+                raise ValueError(f"Onbekende mode '{mode}' (improve|refine|optimize)")
+            results.append({"file": p.name, "session_id": r["session_id"],
+                            "deltas": r.get("deltas")})
+        except Exception as exc:
+            log.warning("batch: %s faalde: %s", p.name, exc)
+            failures.append({"file": p.name, "error": str(exc)})
+    return {"processed": len(results), "failed": len(failures),
+            "results": results, "failures": failures,
+            "viewer_url": _viewer_url()}
+
+
 @mcp.tool()
 def list_sessions(session_id: str | None = None) -> dict:
     """Toon eerdere sessies, of met session_id de volledige voor/na-vergelijking.
@@ -442,7 +485,7 @@ def repair_audio(file_path: str, declip: bool = True, declick: bool = True,
 @mcp.tool()
 def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
                    max_iterations: int = 4, denoise: str = "auto",
-                   out_path: str | None = None) -> dict:
+                   judge_model: str = "small", out_path: str | None = None) -> dict:
     """Nachtrun-optimalisatie: draai meerdere pijplijnvarianten en laat de beste winnen.
 
     Elke variant (EQ-, leveler-, compressor- en dereverb-combinaties) doorloopt
@@ -457,7 +500,8 @@ def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: f
     m0 = analysis.analyze(x, sr)
     y, info = optimize_mod.optimize(x, sr, speech_peak_db=speech_peak_db,
                                     music_gap_db=music_gap_db,
-                                    max_iterations=max_iterations, denoise=denoise)
+                                    max_iterations=max_iterations, denoise=denoise,
+                                    judge_model=judge_model)
     m1 = analysis.analyze(y, sr)
     rep = info["report"]
     rationale = [f"Optimalisatie over {len(rep['ranking'])} varianten; winnaar: "

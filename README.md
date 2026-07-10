@@ -32,6 +32,13 @@ Claude (chat)  ── MCP (stdio) ──>  Python-orchestratie ──> C++ DSP-k
   de beste winnen op een objectieve score: Whisper-woordretentie/-zekerheid plus
   doelafwijking. De ranglijst komt terug in de chat.
 - **"Transcribeer dit"** — `transcribe_audio` (Whisper, [asr]-extra).
+- **"Herstel de clips en klikken"** — `repair_audio`: declip (golfvorm-reconstructie)
+  en declick; improve_audio zet declip automatisch in bij gedetecteerde clipping.
+- **"Klink zoals deze referentie"** — `match_reference`: 1/3-octaaf match-EQ +
+  loudness-match; maakt afleveringen/opnamedagen consistent.
+- **"Splits de stems" / "zang 3 dB erbij" / "maak een karaoke-versie"** —
+  `separate_stems` en `rebalance_music` (Demucs, [stems]-extra).
+- **"Doe de hele map"** — `improve_folder`: batchverwerking (improve/refine/optimize).
 - **"Open de viewer"** / **"Wat is er precies veranderd?"** — A/B-vergelijking; Claude
   leest dezelfde sessiedata als de viewer toont.
 
@@ -63,9 +70,10 @@ time-outen op het bouwen/downloaden.
 ## De viewer
 
 `open_viewer` (of `uv run ait viewer`) start hem op <http://127.0.0.1:8471>.
-Spatie = afspelen, **b/a of de knoppen = wisselen tussen origineel en bewerking**
-terwijl beide synchroon doorlopen. Klik in de golfvorm om te zoeken. Poort
-aanpassen: omgevingsvariabele `AIT_VIEWER_PORT`.
+Spatie = afspelen, **a/b = wisselen tussen origineel en bewerking**, **r =
+residu** (je hoort exact wat de bewerking heeft veranderd — ideaal voor
+artefact-controle) terwijl alles synchroon doorloopt. Klik in de golfvorm om te
+zoeken. Poort aanpassen: omgevingsvariabele `AIT_VIEWER_PORT`.
 
 Sessies staan in `~/AudioImprove/sessions/` (override: `AIT_SESSIONS_DIR`), elk met
 origineel, resultaat, analyses, keten + rationale, golfvormen en spectrogrammen.

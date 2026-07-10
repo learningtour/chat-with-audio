@@ -38,6 +38,11 @@ def default_variants() -> list[dict]:
         drv = {"pre_extra": [{"type": "dereverb"}]}
         v += [
             {"name": "dereverb-puur", "denoise": "off", "tuning": dict(drv)},
+            {"name": "dereverb-deess", "denoise": "off",
+             "tuning": {"pre_extra": [{"type": "dereverb"}, {"type": "deess"}]}},
+            {"name": "dereverb-deess-rustig", "denoise": "off",
+             "tuning": {"pre_extra": [{"type": "dereverb"}, {"type": "deess"}],
+                         **rustig}},
             {"name": "dereverb-rustig", "denoise": "off", "tuning": {**drv, **rustig}},
             {"name": "dereverb-presence-mild", "denoise": "off",
              "tuning": {**drv, **presence_mild}},
@@ -64,7 +69,7 @@ def _score(meas: dict, targets: dict, asr_result: dict | None) -> float:
 def optimize(x: np.ndarray, sr: int, variants: list[dict] | None = None,
              speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
              max_iterations: int = 4, denoise: str = "auto",
-             progress=None) -> tuple[np.ndarray, dict]:
+             judge_model: str = "small", progress=None) -> tuple[np.ndarray, dict]:
     """Draai alle varianten, scoor ze en geef (beste_audio, rapport) terug."""
     x2 = x[None, :] if x.ndim == 1 else x
     variants = variants or default_variants()
@@ -77,7 +82,7 @@ def optimize(x: np.ndarray, sr: int, variants: list[dict] | None = None,
     if use_asr:
         if progress:
             progress("referentietranscript (Whisper) maken")
-        ref = asr.transcribe(refine_mod._cat(x2, speech_sl), sr)
+        ref = asr.transcribe(refine_mod._cat(x2, speech_sl), sr, model_size=judge_model)
         ref_logprob = round(float(np.mean([s["avg_logprob"]
                                            for s in ref["segments"]] or [0])), 2)
 
@@ -99,7 +104,7 @@ def optimize(x: np.ndarray, sr: int, variants: list[dict] | None = None,
         meas = info["report"]["final_measurements"]
         asr_result = None
         if use_asr:
-            t = asr.transcribe(refine_mod._cat(y, speech_sl), sr)
+            t = asr.transcribe(refine_mod._cat(y, speech_sl), sr, model_size=judge_model)
             asr_result = {
                 "word_retention": asr.word_retention(ref["text"], t["text"]),
                 "logprob_original": ref_logprob,

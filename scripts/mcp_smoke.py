@@ -19,7 +19,7 @@ from mcp.client.stdio import stdio_client
 EXPECTED_TOOLS = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudness",
                   "apply_chain", "repair_audio", "match_reference", "refine_audio", "optimize_audio",
                   "transcribe_audio", "separate_stems", "rebalance_music",
-                  "list_sessions", "open_viewer"}
+                  "improve_folder", "list_sessions", "open_viewer"}
 
 
 async def main() -> None:
