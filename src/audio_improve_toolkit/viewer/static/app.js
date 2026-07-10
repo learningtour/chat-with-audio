@@ -4,10 +4,12 @@
 let sessionsList = [];
 let current = null;        // sessiedata van /api/sessions/<id>
 let ctx = null;            // AudioContext (lazy, na user-gesture)
-let bufA = null, bufB = null;
-let rawA = null, rawB = null;  // ArrayBuffers (gefetcht bij sessie-load)
-let srcA = null, srcB = null, gainA = null, gainB = null;
-let playing = false, startedAt = 0, offset = 0, listenB = true;
+let bufA = null, bufB = null, bufR = null;
+let rawA = null, rawB = null, rawR = null;  // ArrayBuffers (gefetcht bij sessie-load)
+let srcA = null, srcB = null, srcR = null;
+let gainA = null, gainB = null, gainR = null;
+let playing = false, startedAt = 0, offset = 0;
+let listen = "b";  // 'a' origineel | 'b' verbeterd | 'r' residu (verschil)
 let trimA = 1;  // monitoring-trim voor originelen die boven 0 dBFS pieken (32-bit float)
 
 const $ = (id) => document.getElementById(id);
@@ -47,7 +49,7 @@ function fmtTime(t) {
 // ---- sessie laden ----
 async function openSession(id) {
   stop();
-  bufA = bufB = rawA = rawB = null; offset = 0;
+  bufA = bufB = bufR = rawA = rawB = rawR = null; offset = 0;
   const r = await fetch("/api/sessions/" + id);
   if (!r.ok) { alert("Sessie niet gevonden"); return; }
   current = await r.json();
@@ -62,10 +64,11 @@ async function openSession(id) {
     (current.profile ? ` · profiel: ${current.profile === "speech" ? "spraak" : "muziek"}` : "");
 
   const hasB = current.has_processed;
-  listenB = hasB;
+  listen = hasB ? "b" : "a";
   $("row-b").style.display = hasB ? "" : "none";
   $("btn-b").disabled = !hasB;
-  setABButtons();
+  $("btn-r").disabled = !hasB;
+  setListenButtons();
 
   // Monitoring-trim voor A: loudness-matched met B (eerlijk vergelijk van kárakter,
   // niet van volume), en nooit boven full scale afspelen.
@@ -87,7 +90,12 @@ async function openSession(id) {
   setSpec("original");
 
   rawA = await (await fetch(`/files/${id}/original.wav`)).arrayBuffer();
-  if (hasB) rawB = await (await fetch(`/files/${id}/processed.wav`)).arrayBuffer();
+  if (hasB) {
+    rawB = await (await fetch(`/files/${id}/processed.wav`)).arrayBuffer();
+    const rr = await fetch(`/files/${id}/residual.wav`);
+    rawR = rr.ok ? await rr.arrayBuffer() : null;  // oudere sessies hebben geen residu
+    $("btn-r").disabled = !rawR;
+  }
   updateTime();
 }
 
@@ -188,24 +196,38 @@ async function ensureBuffers() {
   if (!rawA) rawA = await (await fetch(`/files/${id}/original.wav`)).arrayBuffer();
   if (!rawB && current.has_processed)
     rawB = await (await fetch(`/files/${id}/processed.wav`)).arrayBuffer();
+  if (!rawR && current.has_processed) {
+    const rr = await fetch(`/files/${id}/residual.wav`);
+    rawR = rr.ok ? await rr.arrayBuffer() : null;
+  }
   if (!bufA && rawA) bufA = await ctx.decodeAudioData(rawA.slice(0));
   if (!bufB && rawB) bufB = await ctx.decodeAudioData(rawB.slice(0));
+  if (!bufR && rawR) bufR = await ctx.decodeAudioData(rawR.slice(0));
+}
+
+function _gainFor(which) {
+  if (which === "a") return listen === "a" || !bufB ? trimA : 0;
+  if (which === "b") return listen === "b" && bufB ? 1 : 0;
+  return listen === "r" && bufR ? 1 : 0;
 }
 
 async function play() {
   if (!current || playing) return;
   await ensureBuffers();
   if (!bufA) return;
-  gainA = ctx.createGain(); gainB = ctx.createGain();
-  gainA.connect(ctx.destination); gainB.connect(ctx.destination);
-  gainA.gain.value = listenB && bufB ? 0 : trimA;
-  gainB.gain.value = listenB && bufB ? 1 : 0;
+  gainA = ctx.createGain(); gainB = ctx.createGain(); gainR = ctx.createGain();
+  for (const g of [gainA, gainB, gainR]) g.connect(ctx.destination);
+  gainA.gain.value = _gainFor("a");
+  gainB.gain.value = _gainFor("b");
+  gainR.gain.value = _gainFor("r");
   srcA = ctx.createBufferSource(); srcA.buffer = bufA; srcA.connect(gainA);
   if (bufB) { srcB = ctx.createBufferSource(); srcB.buffer = bufB; srcB.connect(gainB); }
+  if (bufR) { srcR = ctx.createBufferSource(); srcR.buffer = bufR; srcR.connect(gainR); }
   const t0 = ctx.currentTime + 0.03;
   if (offset >= bufA.duration) offset = 0;
   srcA.start(t0, offset);
   if (srcB) srcB.start(t0, offset);
+  if (srcR) srcR.start(t0, offset);
   srcA.onended = () => { if (playing) { stop(); offset = 0; updateTime(); } };
   startedAt = t0; playing = true;
   $("btn-play").textContent = "❚❚";
@@ -214,8 +236,8 @@ async function play() {
 
 function stop(keepOffset = false) {
   if (srcA) { srcA.onended = null; try { srcA.stop(); } catch {} }
-  if (srcB) { try { srcB.stop(); } catch {} }
-  srcA = srcB = null;
+  for (const s of [srcB, srcR]) if (s) { try { s.stop(); } catch {} }
+  srcA = srcB = srcR = null;
   if (playing && keepOffset && ctx) offset += Math.max(0, ctx.currentTime - startedAt);
   playing = false;
   $("btn-play").textContent = "▶";
@@ -231,20 +253,23 @@ function seekTo(frac) {
   if (was) play();
 }
 
-function setAB(toB) {
-  if (toB && !current?.has_processed) return;
-  listenB = toB;
-  setABButtons();
-  if (playing && gainA && gainB) {
+function setListen(which) {
+  if (which !== "a" && !current?.has_processed) return;
+  if (which === "r" && playing && !bufR) return;
+  listen = which;
+  setListenButtons();
+  if (playing && gainA && gainB && gainR) {
     const t = ctx.currentTime;
-    gainA.gain.setTargetAtTime(toB ? 0 : trimA, t, 0.005);
-    gainB.gain.setTargetAtTime(toB ? 1 : 0, t, 0.005);
+    gainA.gain.setTargetAtTime(_gainFor("a"), t, 0.005);
+    gainB.gain.setTargetAtTime(_gainFor("b"), t, 0.005);
+    gainR.gain.setTargetAtTime(_gainFor("r"), t, 0.005);
   }
 }
 
-function setABButtons() {
-  $("btn-a").classList.toggle("active", !listenB);
-  $("btn-b").classList.toggle("active", listenB);
+function setListenButtons() {
+  $("btn-a").classList.toggle("active", listen === "a");
+  $("btn-b").classList.toggle("active", listen === "b");
+  $("btn-r").classList.toggle("active", listen === "r");
 }
 
 function pos() {
@@ -264,8 +289,9 @@ function tick() {
 
 // ---- events ----
 $("btn-play").onclick = togglePlay;
-$("btn-a").onclick = () => setAB(false);
-$("btn-b").onclick = () => setAB(true);
+$("btn-a").onclick = () => setListen("a");
+$("btn-b").onclick = () => setListen("b");
+$("btn-r").onclick = () => setListen("r");
 document.querySelectorAll(".spec-tabs button").forEach(
   (b) => (b.onclick = () => setSpec(b.dataset.spec)));
 for (const id of ["wave-a", "wave-b"]) {
@@ -277,8 +303,9 @@ for (const id of ["wave-a", "wave-b"]) {
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT") return;
   if (e.code === "Space") { e.preventDefault(); togglePlay(); }
-  if (e.key === "b") setAB(!listenB);
-  if (e.key === "a") setAB(false);
+  if (e.key === "a") setListen("a");
+  if (e.key === "b") setListen(listen === "b" ? "a" : "b");
+  if (e.key === "r") setListen("r");
 });
 window.addEventListener("resize", () => current && redrawWaves(pos()));
 window.addEventListener("hashchange", route);

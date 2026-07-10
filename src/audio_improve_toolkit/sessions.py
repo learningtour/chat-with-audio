@@ -57,6 +57,8 @@ def create_session(source_path: str | Path, x_original: np.ndarray, sr: int,
             {"metrics": metrics_processed, "scores": scores_p, "issues": issues_p},
             indent=2, ensure_ascii=False))
         deltas = compute_deltas(metrics_original, metrics_processed)
+        _write_residual(d, x_original, x_processed, sr,
+                        metrics_original, metrics_processed)
 
     if chain is not None:
         (d / "chain.json").write_text(json.dumps(
@@ -75,6 +77,21 @@ def create_session(source_path: str | Path, x_original: np.ndarray, sr: int,
     }
     (d / "session.json").write_text(json.dumps(session, indent=2, ensure_ascii=False))
     return session
+
+
+def _write_residual(d: Path, x_original: np.ndarray, x_processed: np.ndarray,
+                    sr: int, m_orig: dict, m_proc: dict) -> None:
+    """Residu = bewerking minus loudness-gematcht origineel: precies wat de
+    keten heeft veranderd. Onmisbaar voor artefact-controle ('wat is er
+    weggehaald of bijgemaakt?')."""
+    lo, lp = m_orig.get("lufs_integrated"), m_proc.get("lufs_integrated")
+    gain = 10.0 ** ((lp - lo) / 20.0) if (lo is not None and lp is not None) else 1.0
+    xo = x_original[None, :] if x_original.ndim == 1 else x_original
+    xp = x_processed[None, :] if x_processed.ndim == 1 else x_processed
+    n = min(xo.shape[1], xp.shape[1])
+    ch = min(xo.shape[0], xp.shape[0])
+    residual = xp[:ch, :n] - xo[:ch, :n] * gain
+    io.save_wav(d / "residual.wav", residual, sr)
 
 
 _DELTA_KEYS = ("lufs_integrated", "true_peak_dbtp", "rms_db", "noise_floor_db",

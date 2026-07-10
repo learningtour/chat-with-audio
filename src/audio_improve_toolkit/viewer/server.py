@@ -28,6 +28,7 @@ STATIC_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript",
 ALLOWED_SESSION_FILES = {
     "original.wav": "audio/wav",
     "processed.wav": "audio/wav",
+    "residual.wav": "audio/wav",
     "spectrogram_original.png": "image/png",
     "spectrogram_processed.png": "image/png",
 }

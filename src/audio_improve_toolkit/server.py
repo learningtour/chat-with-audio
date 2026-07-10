@@ -338,10 +338,16 @@ def rebalance_music(file_path: str, vocals_db: float = 0.0, drums_db: float = 0.
     y = np.zeros_like(x, dtype=np.float32)
     for name, part in parts.items():
         y = y + part * (10.0 ** (gains.get(name, 0.0) / 20.0))
-    steps: list[dict] = [{"type": "limiter", "ceiling_db": -1.0}]
+    steps: list[dict] = []
+    peak = float(np.abs(y).max())
     if target_lufs is not None:
-        steps = [{"type": "loudness_normalize", "target_lufs": target_lufs,
-                  "true_peak_db": -1.0}]
+        steps.append({"type": "loudness_normalize", "target_lufs": target_lufs,
+                      "true_peak_db": -1.0})
+    elif peak > 10.0 ** (-1.0 / 20.0):
+        # statische gain naar -2 dBFS piek (dynamiek intact), limiter alleen als vangnet
+        steps.append({"type": "gain",
+                      "gain_db": round(20.0 * np.log10(10.0 ** (-2.0 / 20.0) / peak), 2)})
+        steps.append({"type": "limiter", "ceiling_db": -1.0})
     y, resolved = chain.run_chain(y, sr, steps)
     m1 = analysis.analyze(y, sr)
     changed = ", ".join(f"{k} {v:+.1f} dB" for k, v in gains.items() if v)

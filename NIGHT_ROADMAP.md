@@ -10,7 +10,7 @@ baanbrekend, elk productiehuis wil dit downloaden." Werkwijze: elke feature af
       MCP-tool repair_audio, auto-declip in improve bij clip_events > 0)
 - [x] 2. Stem-separatie (Demucs htdemucs): separate_stems + rebalance_music
       (incl. karaoke = vocals -60 dB); A/B-sessie voor rebalance
-- [ ] 3. Residu-beluistering in de viewer: derde knop "R - verschil" =
+- [x] 3. Residu-beluistering in de viewer: derde knop "R - verschil" =
       loudness-gematcht verschil tussen origineel en bewerking (artefact-check)
 - [ ] 4. Reference matching: match_reference(file, reference) - 1/3-octaaf
       spectrale match-EQ (begrensd) + loudness match
