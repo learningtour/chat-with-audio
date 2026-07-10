@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio Improve — A/B Viewer</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <h1>Audio Improve</h1>
+    <p class="sub">Sessies</p>
+    <ul id="session-list"></ul>
+  </aside>
+  <main id="main">
+    <div id="empty" class="panel">
+      <h2>Kies een sessie</h2>
+      <p>Verwerk audio via Claude (“maak dit geluid beter”) en de sessie verschijnt hier.</p>
+    </div>
+    <div id="detail" hidden>
+      <header id="detail-header">
+        <div>
+          <h2 id="s-label"></h2>
+          <p class="sub" id="s-meta"></p>
+        </div>
+        <div id="transport">
+          <button id="btn-play" class="big" title="spatie">▶</button>
+          <div id="ab-toggle">
+            <button id="btn-a" title="toets a">A · origineel</button>
+            <button id="btn-b" class="active" title="toets b">B · verbeterd</button>
+          </div>
+          <span id="time">0:00 / 0:00</span>
+        </div>
+      </header>
+
+      <section class="panel">
+        <div class="wave-row"><span class="tag">A · origineel</span>
+          <canvas id="wave-a" height="110"></canvas></div>
+        <div class="wave-row" id="row-b"><span class="tag">B · verbeterd</span>
+          <canvas id="wave-b" height="110"></canvas></div>
+      </section>
+
+      <section class="panel">
+        <h3>Spectrogram</h3>
+        <div class="spec-tabs">
+          <button data-spec="original" class="active">Origineel</button>
+          <button data-spec="processed">Verbeterd</button>
+        </div>
+        <img id="spec-img" alt="spectrogram">
+      </section>
+
+      <div class="cols">
+        <section class="panel">
+          <h3>Metingen</h3>
+          <table id="metrics"></table>
+        </section>
+        <section class="panel">
+          <h3>Wat is er gedaan?</h3>
+          <ol id="rationale"></ol>
+          <details><summary>Technische keten</summary><pre id="chain"></pre></details>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

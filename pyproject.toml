@@ -1,0 +1,40 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=3.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "audio-improve-toolkit"
+version = "0.1.0"
+description = "Chat-gestuurde audio-verbetertool: MCP-server + C++ DSP-kern + lokale A/B-viewer"
+requires-python = ">=3.10,<3.12"
+dependencies = [
+    "numpy>=1.24,<2.0",
+    "scipy>=1.10",
+    "soundfile>=0.12",
+    "pyloudnorm>=0.1.1",
+    "pillow>=10",
+    "mcp>=1.2",
+]
+
+[project.optional-dependencies]
+ai = [
+    "deepfilternet>=0.5.6",
+    # DeepFilterNet 0.5.x importeert torchaudio.backend, dat in torchaudio 2.9 is verwijderd
+    "torch>=2.0,<2.9",
+    "torchaudio>=2.0,<2.9",
+]
+
+[project.scripts]
+ait = "audio_improve_toolkit.cli:main"
+audio-improve-mcp = "audio_improve_toolkit.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.scikit-build]
+wheel.packages = ["src/audio_improve_toolkit"]
+cmake.version = ">=3.26"
+build-dir = "build/{wheel_tag}"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

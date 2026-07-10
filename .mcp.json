@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "audio-improve": {
+      "command": "/Users/sergedebeer/.local/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/sergedebeer/Vibe coding local/Audio Improve Toolkit",
+        "audio-improve-mcp"
+      ]
+    }
+  }
+}
