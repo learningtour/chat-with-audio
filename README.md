@@ -1,4 +1,6 @@
-# Audio Improve Toolkit
+# Chat with Audio
+
+_Onderdeel van **Agentic Production**._
 
 Chat-gestuurde audio-verbetering: praat met je lokale Claude (Desktop of Claude Code)
 over een opname en laat de toolkit hem analyseren en verbeteren. Een lokale
