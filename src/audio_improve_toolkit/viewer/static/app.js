@@ -27,19 +27,52 @@ const METRIC_LABELS = {
 };
 
 // ---- sessielijst ----
-async function loadList() {
-  sessionsList = await (await fetch("/api/sessions")).json();
+function renderList() {
   const ul = $("session-list");
   ul.innerHTML = "";
   for (const s of sessionsList) {
     const li = document.createElement("li");
     li.dataset.id = s.session_id;
+    if (current && s.session_id === current.session_id) li.classList.add("active");
     li.innerHTML = `<div>${s.label}</div><div class="d">${s.created} · ${fmtTime(s.duration_s)}` +
       (s.has_processed ? "" : " · alleen analyse") + `</div>`;
     li.onclick = () => { location.hash = "#/session/" + s.session_id; };
     ul.appendChild(li);
   }
 }
+
+async function loadList() {
+  sessionsList = await (await fetch("/api/sessions")).json();
+  renderList();
+}
+
+// push: nieuwe sessies verschijnen vanzelf, met een klikbare melding
+function showNewSessionToast(s) {
+  let t = $("toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "toast";
+    document.body.appendChild(t);
+  }
+  t.innerHTML = `🔔 Nieuw: <b>${s.label}</b> — klik om te openen`;
+  t.onclick = () => { location.hash = "#/session/" + s.session_id; t.classList.remove("show"); };
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 20000);
+}
+
+setInterval(async () => {
+  try {
+    const list = await (await fetch("/api/sessions")).json();
+    if (!Array.isArray(list) || !list.length) return;
+    const known = sessionsList.length ? sessionsList[0].session_id : null;
+    if (list[0].session_id !== known) {
+      sessionsList = list;
+      renderList();
+      showNewSessionToast(list[0]);
+    }
+  } catch { /* viewer offline of herstart: stil doorproberen */ }
+}, 3000);
 
 function fmtTime(t) {
   t = Math.max(0, t || 0);

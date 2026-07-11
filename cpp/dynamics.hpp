@@ -22,7 +22,14 @@ inline void noise_gate(float** ch, int nch, size_t n, float sr, float threshold_
     const float close_c = smooth_coef(release_ms, sr);
     const long hold_samples = long(hold_ms * 0.001f * sr);
 
-    float env = 0.0f, gain = 1.0f;
+    // beginstand op basis van de eerste ~5 ms: een stille kop moet direct
+    // gedempt zijn, anders 'lekt' hij door de trage sluit-release
+    float det0 = 0.0f;
+    const size_t warmup = std::min(n, size_t(0.005f * sr));
+    for (size_t i = 0; i < warmup; ++i)
+        for (int c = 0; c < nch; ++c) det0 = std::max(det0, std::fabs(ch[c][i]));
+    float env = det0;
+    float gain = det0 >= thr ? 1.0f : floor_gain;
     long hold = 0;
     for (size_t i = 0; i < n; ++i) {
         float det = 0.0f;

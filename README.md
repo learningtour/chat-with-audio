@@ -64,12 +64,15 @@ uv run python scripts/mcp_smoke.py   # MCP-rooktest
 `uv sync` (zonder `--all-extras`) installeert de basis zonder torch/DeepFilterNet;
 de tool valt dan automatisch terug op spectral gating.
 
-## Registratie bij Claude
+## Registratie bij Claude (en Codex)
 
 - **Claude Code**: staat in `.mcp.json` in de projectmap (werkt automatisch in deze map).
 - **Claude Desktop**: entry `audio-improve` in
   `~/Library/Application Support/Claude/claude_desktop_config.json`. Herstart
   Claude Desktop na installatie; de tools verschijnen onder "audio-improve".
+- **Codex CLI/app**: geregistreerd als globale MCP-server via
+  `codex mcp add audio-improve -- <uv-pad> run --directory <projectmap> audio-improve-mcp`
+  (controleer met `codex mcp list`). Dezelfde 18 tools, dezelfde sessies en viewer.
 
 Let op: draai éérst `uv sync --all-extras`, anders kan de eerste serverstart
 time-outen op het bouwen/downloaden.

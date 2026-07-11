@@ -102,7 +102,10 @@ def noise_gate(x: np.ndarray, sr: float, threshold_db: float, attack_ms: float =
     hold_blocks = int(hold_ms * 0.001 * sr / block)
 
     gains = np.empty(det.shape[0], dtype=np.float64)
-    env, g, hold = 0.0, 1.0, 0
+    # beginstand: een stille kop moet direct gedempt zijn
+    env = float(det[0]) if det.size else 0.0
+    g = 1.0 if env >= thr else floor_gain
+    hold = 0
     for i, d in enumerate(det):
         env = env_a * env + (1 - env_a) * d if d > env else env_r * env + (1 - env_r) * d
         if env >= thr:
