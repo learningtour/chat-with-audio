@@ -8,7 +8,7 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "apply_chain", "repair_audio", "match_reference", "refine_audio",
             "optimize_audio", "transcribe_audio", "separate_stems", "rebalance_music",
             "improve_folder", "view_audio", "rate_audio", "export_to_audition",
-            "list_sessions", "open_viewer"}
+            "list_sessions", "open_viewer", "smart_edit"}
 
 
 def test_tool_registry():
@@ -40,3 +40,38 @@ def test_apply_chain_tool(noisy_wav):
     assert res["metrics_after"]["true_peak_dbtp"] <= -2.5
     assert len(res["chain"]) == 3
     assert res["deltas"]["rms_db"] > 1
+
+
+def test_smart_edit_tool(tmp_path, sr):
+    import numpy as np
+    import soundfile as sf
+
+    t = np.arange(sr * 12) / sr
+    syllables = (np.sin(2 * np.pi * 5.0 * t) > 0).astype(np.float64)
+    sentences = (np.sin(2 * np.pi * 0.25 * t) > -0.6).astype(np.float64)
+    base = 0.1 * np.sin(2 * np.pi * 300 * t) * syllables * sentences
+    hum = 0.02 * (np.sin(2 * np.pi * 50 * t) + 0.5 * np.sin(2 * np.pi * 100 * t))
+    x = (base + hum * ((t >= 4) & (t < 8))).astype(np.float32)
+    p = tmp_path / "hum_middle.wav"
+    sf.write(str(p), x, sr)
+
+    res = server.smart_edit(str(p))
+    assert res["regions"], res.get("message")
+    assert any(r["kind"] == "hum" for r in res["regions"])
+    detail = server.list_sessions(session_id=res["session_id"])
+    assert detail["timeline"]["regions"], "regiokaart hoort in de sessietijdlijn"
+    assert detail["chain"]["steps"][0]["type"] == "region"
+
+
+def test_smart_edit_clean_file_does_nothing(tmp_path, sr):
+    import numpy as np
+    import soundfile as sf
+
+    t = np.arange(sr * 8) / sr
+    x = (0.1 * np.sin(2 * np.pi * 300 * t)
+         * (np.sin(2 * np.pi * 5.0 * t) > 0)).astype(np.float32)
+    p = tmp_path / "clean.wav"
+    sf.write(str(p), x, sr)
+    res = server.smart_edit(str(p))
+    assert res["regions"] == []
+    assert "improve_audio" in res["message"]

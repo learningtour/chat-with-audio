@@ -504,6 +504,85 @@ def repair_audio(file_path: str, declip: bool = True, declick: bool = True,
 
 
 @mcp.tool()
+def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "auto",
+               out_path: str | None = None, user_request: str = "") -> dict:
+    """Chirurgische bewerking: AI vindt probleemregio's en behandelt alléén die delen.
+
+    Waar improve_audio het hele bestand mastert, zoekt smart_edit op de tijdlijn
+    naar plekken waar iets mis is en repareert uitsluitend daar, met crossfades:
+      hum   — netbrom die aan/uit gaat (koelkast, dimmer): notch alleen daar
+      noise — ruis die tijdelijk opkomt (airco, verkeer): ontruising alleen daar
+      clip  — clusters afgekapte toppen: declip alleen rond de schade
+      boom  — laagfrequente dreun (passerende vrachtwagen): laag-cut alleen daar
+    Alles buiten de regio's blijft bit-voor-bit onaangetast; niveau en klank van
+    het geheel veranderen niet. problems: "auto" (alles) of kommalijst uit
+    hum,noise,clip,boom. denoise_method: auto|spectral|ai (voor ruisregio's die
+    spraak raken). De regiokaart staat als tijdlijn in de viewer en in het
+    resultaat, met per regio de tijden, de diagnose en de toegepaste fix.
+    """
+    from chat_with_audio import regions as regions_mod
+    from chat_with_audio.segments import classify_segments
+
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    segs = classify_segments(x, sr)
+    found = regions_mod.detect_regions(x, sr, segments=segs)
+    if problems not in ("auto", "", "all"):
+        wanted = {p.strip() for p in problems.split(",")}
+        unknown = wanted - set(regions_mod.KIND_LABELS)
+        if unknown:
+            raise ValueError(f"Onbekende probleemsoort(en) {sorted(unknown)}. "
+                             f"Geldig: {sorted(regions_mod.KIND_LABELS)} of 'auto'.")
+        found = [r for r in found if r["kind"] in wanted]
+    if not found:
+        return {"regions": [],
+                "message": "Geen probleemregio's gevonden: geen plaatselijke brom, "
+                           "ruis, clipping of dreun. Voor algehele verbetering "
+                           "(loudness, EQ, dynamiek) is improve_audio de weg."}
+
+    ai_ok = denoise_method != "spectral" and dsp.ai_denoise_available()
+    planned, rationale = regions_mod.plan_region_fixes(found, sr, ai_available=ai_ok,
+                                                       segments=segs)
+    if denoise_method == "ai" and not dsp.ai_denoise_available():
+        from chat_with_audio.dsp import ai_nr
+
+        rationale.append(f"AI-ontruising niet beschikbaar; spectral gating "
+                         f"gebruikt. ({ai_nr.INSTALL_HINT})")
+    y, applied = regions_mod.apply_regions(x, sr, planned)
+    m1 = analysis.analyze(y, sr)
+
+    region_summary = [{"kind": r["kind"], "label": r.get("label", r["kind"]),
+                       "start_s": round(r["start_s"], 2), "end_s": round(r["end_s"], 2),
+                       "severity_db": r.get("severity_db")} for r in applied]
+    chain_steps = [{"type": "region", "kind": r["kind"],
+                    "start_s": round(r["start_s"], 2), "end_s": round(r["end_s"], 2),
+                    "steps": r["steps"]} for r in applied]
+    rationale = [f"Chirurgische bewerking: {len(applied)} regio('s) behandeld, "
+                 "alles daarbuiten bit-voor-bit onaangetast."] + rationale
+    session = sessions.create_session(
+        file_path, x, sr, m0, y, m1, chain_steps, rationale, None,
+        label=f"{Path(file_path).name} — chirurgisch",
+        user_request=user_request or None,
+        timeline={"segments": segs, "regions": region_summary})
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "regions": region_summary,
+        "rationale": rationale,
+        "metrics_before": m0,
+        "metrics_after": m1,
+        "deltas": session["deltas"],
+        "hint": "De tijdlijn in de viewer toont waar is ingegrepen; toets r laat "
+                "je per regio horen wat er is weggehaald.",
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
                    max_iterations: int = 4, denoise: str = "auto",
                    judge_model: str = "small", out_path: str | None = None) -> dict:

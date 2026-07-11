@@ -34,11 +34,29 @@ def create_session(source_path: str | Path, x_original: np.ndarray, sr: int,
                    metrics_processed: dict | None = None, chain: list | None = None,
                    rationale: list[str] | None = None, profile: str | None = None,
                    label: str | None = None, user_request: str | None = None,
-                   asr_report: dict | None = None) -> dict:
-    """Schrijf een complete sessiemap; geeft session.json-inhoud terug."""
+                   asr_report: dict | None = None,
+                   timeline: dict | None = None) -> dict:
+    """Schrijf een complete sessiemap; geeft session.json-inhoud terug.
+
+    timeline: {"segments": [...], "regions": [...]} voor de tijdlijnbalk in de
+    viewer; zonder opgave worden de spraak/muziek/stilte-segmenten zelf bepaald.
+    """
     session_id = time.strftime("%Y%m%d-%H%M%S") + "-" + _slug(str(source_path))
     d = sessions_dir() / session_id
     d.mkdir(parents=True, exist_ok=True)
+
+    if timeline is None:
+        try:
+            from chat_with_audio.segments import classify_segments
+
+            timeline = {"segments": classify_segments(x_original, sr)}
+        except Exception:  # tijdlijn is nice-to-have, nooit blokkerend
+            timeline = None
+    if timeline:
+        tidy = {k: [{**item, "start_s": round(float(item["start_s"]), 2),
+                     "end_s": round(float(item["end_s"]), 2)} for item in v]
+                for k, v in timeline.items()}
+        (d / "timeline.json").write_text(json.dumps(tidy, indent=2, ensure_ascii=False))
 
     io.save_wav(d / "original.wav", x_original, sr)
     visuals.waveform_json(x_original, sr, d / "waveform_original.json")
@@ -139,7 +157,8 @@ def load_session(session_id: str) -> dict:
     data = json.loads((d / "session.json").read_text())
     for key, fname in (("original", "analysis_original.json"),
                        ("processed", "analysis_processed.json"),
-                       ("chain", "chain.json")):
+                       ("chain", "chain.json"),
+                       ("timeline", "timeline.json")):
         f = d / fname
         if f.exists():
             data[key] = json.loads(f.read_text())
