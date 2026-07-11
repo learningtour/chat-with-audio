@@ -122,12 +122,25 @@ async function openSession(id) {
   renderChain();
   setSpec("original");
 
+  const dln = (suffix) => `${current.label.replace(/[^\w\d-]+/g, "_")}_${suffix}.wav`;
+  $("dl-a").href = `/files/${id}/original.wav`;
+  $("dl-a").setAttribute("download", dln("A_origineel"));
+  $("dl-b").hidden = !hasB;
+  $("dl-b").href = `/files/${id}/processed.wav`;
+  $("dl-b").setAttribute("download", dln("B_verbeterd"));
+  $("dl-r").hidden = true;
+
   rawA = await (await fetch(`/files/${id}/original.wav`)).arrayBuffer();
   if (hasB) {
     rawB = await (await fetch(`/files/${id}/processed.wav`)).arrayBuffer();
     const rr = await fetch(`/files/${id}/residual.wav`);
     rawR = rr.ok ? await rr.arrayBuffer() : null;  // oudere sessies hebben geen residu
     $("btn-r").disabled = !rawR;
+    if (rawR) {
+      $("dl-r").hidden = false;
+      $("dl-r").href = `/files/${id}/residual.wav`;
+      $("dl-r").setAttribute("download", dln("R_verschil"));
+    }
   }
   updateTime();
 }
@@ -351,4 +364,38 @@ function route() {
   if (m) openSession(m[1]);
 }
 
+// editorkeuze ("Open in ..."): instelbaar, onthouden in localStorage
+async function initEditors() {
+  try {
+    const eds = await (await fetch("/api/editors")).json();
+    const sel = $("editor-select");
+    sel.innerHTML = eds.map((e) =>
+      `<option value="${e.key}" ${e.installed ? "" : "disabled"}>` +
+      `${e.name}${e.installed ? "" : " (niet gevonden)"}</option>`).join("");
+    const saved = localStorage.getItem("ait-editor");
+    const ok = [...sel.options].find((o) => o.value === saved && !o.disabled);
+    if (ok) sel.value = saved;
+    else {
+      const first = [...sel.options].find((o) => !o.disabled);
+      if (first) sel.value = first.value;
+    }
+    updateEditorButton();
+    sel.onchange = () => { localStorage.setItem("ait-editor", sel.value); updateEditorButton(); };
+  } catch { /* endpoint ontbreekt in oudere server */ }
+}
+function updateEditorButton() {
+  const o = $("editor-select").selectedOptions[0];
+  $("btn-editor").textContent = "Open in " + (o ? o.textContent.replace(" (niet gevonden)", "") : "…");
+}
+$("btn-editor").onclick = async () => {
+  if (!current) return;
+  const res = await fetch("/api/open-in-editor", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: current.session_id, editor: $("editor-select").value }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) alert(j.error || "Openen mislukt");
+};
+
+initEditors();
 loadList().then(route);

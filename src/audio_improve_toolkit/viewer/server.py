@@ -11,9 +11,11 @@ Endpoints:
 
 from __future__ import annotations
 
+import glob
 import json
 import logging
 import os
+import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,6 +27,30 @@ log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
 STATIC_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript",
                 ".css": "text/css", ".png": "image/png", ".svg": "image/svg+xml"}
+# Editors voor de "Open in ..."-knop; alleen deze whitelist kan gestart worden.
+EDITORS = {
+    "audition": ("Adobe Audition", ["/Applications/Adobe Audition*/Adobe Audition*.app",
+                                     "/Applications/Adobe Audition*.app"]),
+    "protools": ("Pro Tools", ["/Applications/Pro Tools.app"]),
+    "audacity": ("Audacity", ["/Applications/Audacity.app"]),
+    "logic": ("Logic Pro", ["/Applications/Logic Pro*.app"]),
+    "reaper": ("REAPER", ["/Applications/REAPER*.app"]),
+}
+
+
+def _find_app(patterns: list[str]) -> str | None:
+    for pat in patterns:
+        hits = sorted(glob.glob(pat), reverse=True)
+        if hits:
+            return hits[0]
+    return None
+
+
+def available_editors() -> list[dict]:
+    return [{"key": k, "name": name, "installed": _find_app(pats) is not None}
+            for k, (name, pats) in EDITORS.items()]
+
+
 ALLOWED_SESSION_FILES = {
     "original.wav": "audio/wav",
     "processed.wav": "audio/wav",
@@ -72,6 +98,8 @@ class Handler(BaseHTTPRequestHandler):
             self._static("index.html")
         elif path == "/health":
             self._json({"status": "ok"})
+        elif path == "/api/editors":
+            self._json(available_editors())
         elif path == "/api/sessions":
             self._json(sessions.list_sessions())
         elif path.startswith("/api/sessions/"):
@@ -102,6 +130,53 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, f.read_bytes(), ctype)
         else:
             self._error(404, "onbekend pad")
+
+    def do_POST(self):  # noqa: N802
+        try:
+            # CSRF-bescherming: alleen requests vanaf de viewer zelf
+            origin = self.headers.get("Origin")
+            host = self.headers.get("Host", "")
+            if origin and origin.split("//")[-1] != host:
+                return self._error(403, "verboden origin")
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            body = json.loads(self.rfile.read(length) or b"{}")
+            if self.path == "/api/open-in-editor":
+                self._open_in_editor(body)
+            else:
+                self._error(404, "onbekend pad")
+        except BrokenPipeError:
+            pass
+        except Exception as exc:
+            log.exception("viewer-fout voor %s", self.path)
+            try:
+                self._error(500, str(exc))
+            except Exception:
+                pass
+
+    def _open_in_editor(self, body: dict) -> None:
+        key = str(body.get("editor", "audition"))
+        sid = str(body.get("session_id", ""))
+        if "/" in sid or ".." in sid or not sid:
+            return self._error(403, "ongeldige sessie")
+        info = EDITORS.get(key)
+        if info is None:
+            return self._error(400, f"onbekende editor '{key}'")
+        app = _find_app(info[1])
+        if app is None:
+            return self._error(404, f"{info[0]} niet gevonden in /Applications")
+        d = sessions.session_path(sid)
+        f = d / "processed.wav"
+        if not f.is_file():
+            f = d / "original.wav"
+        if not f.is_file():
+            return self._error(404, "geen audio in deze sessie")
+        if body.get("dry_run"):
+            return self._json({"dry_run": True, "app": app, "file": str(f)})
+        if sys.platform == "win32":
+            os.startfile(str(f))  # noqa: S606 - Windows kent geen 'open -a'
+        else:
+            subprocess.run(["open", "-a", app, str(f)], capture_output=True)
+        self._json({"opened": True, "app": info[0], "file": f.name})
 
     def _static(self, name: str) -> None:
         f = (STATIC / name).resolve()
