@@ -16,7 +16,10 @@ const $ = (id) => document.getElementById(id);
 
 const METRIC_LABELS = {
   lufs_integrated: ["Loudness (LUFS)", null],
+  lufs_short_term_max: ["Short-term max (LUFS)", null],
+  lufs_momentary_max: ["Momentary max (LUFS)", null],
   true_peak_dbtp: ["True peak (dBTP)", null],
+  plr_db: ["PLR (dB)", null],
   rms_db: ["RMS (dB)", null],
   noise_floor_db: ["Ruisvloer (dB)", "down"],
   snr_db: ["SNR (dB)", "up"],

@@ -1,39 +1,50 @@
-# Night roadmap — July 12/13, 2026
+# Night roadmap — July 13/14, 2026
 
-Assignment from Serge: "Make it a beautiful project. Clean up the code on
-GitHub and keep building steadily. Expand the project's capabilities. Let
-people reuse the skills you've used. Make the interface more professional.
-And make it possible to process *parts* of the audio — not effects over the
-whole file, and not time ranges given by the user, but regions chosen by
-smart AI." Method unchanged: finish each feature (implementation + tests +
-commit) before starting the next; the repo stays green.
+Assignment from Serge: "Judge the software as a sound designer — is it
+broadcast and Hollywood proof? Make the tool 200% better; it should become
+the industry standard for AI audio editing. It's too small and experimental
+for that now. Also write extensive English documentation. You have 8 hours."
+
+## The sound designer's verdict (drives tonight's plan)
+
+Musical and clever, but not yet a broadcast/Hollywood tool. Missing, in order
+of professional pain:
+
+1. **Delivery compliance** — no EBU R128 / ATSC A/85 / Netflix / streaming
+   spec checking, no dialogue-gated loudness, no momentary/short-term
+   ceilings, no pass/fail QC report. A mixer cannot deliver with this alone.
+2. **Stereo & technical QC** — no phase correlation, no dead-channel /
+   dual-mono / polarity detection, no dropout scan, no head/tail silence
+   check. These are the first things a QC department runs.
+3. **Dialogue editing depth** — no breath control, no plosive repair, no
+   music-under-dialogue ducking. That's the daily bread of film post.
+4. **DAW interoperability** — the AI region map stays in the viewer; a
+   pro wants it as markers inside Audition/Audacity/Pro Tools.
+5. **Delivery-grade I/O** — no sample-rate conversion or bit-depth control
+   on export (48 kHz / 24-bit is the broadcast lingua franca).
+6. **Documentation** — a README is not industry-standard docs.
 
 ## Status
 
-- [x] 1. Repo hygiene: MIT license, ruff lint (config + fixes), GitHub
-      Actions CI (uv sync + ruff + pytest on ubuntu/macos), pyproject
-      metadata (v0.2.0), README badges
-- [x] 2. Smart region edits: regions.py detects problem regions on the
-      timeline (hum, noise, clipping, boom) and smart_edit applies a
-      targeted mini-chain per region with raised-cosine crossfades —
-      everything outside the regions stays bit-for-bit untouched;
-      timeline.json feeds the viewer timeline
-- [x] 3. Reusable recipes: save a chain that worked as a named, shareable
-      JSON recipe (save_recipe / apply_recipe / list_recipes) + four curated
-      built-in presets distilled from real sessions
-- [x] 4. Viewer professionalization: design pass, content/interventions
-      timeline lanes under the waveforms, "Chat with Audio" branding,
-      verified live in the browser (incl. click-to-seek and A/B/R)
-- [x] 5. Docs (README/CLAUDE.md), morning report, memory update, all pushed
+- [ ] 1. Pro metering & QC: momentary/short-term LUFS max, PLR, stereo QC
+      (correlation, dual-mono, polarity, balance), dropout scan, head/tail
+      silence — into metrics + issues, with tests
+- [ ] 2. Compliance suite: spec registry (EBU R128, ATSC A/85, Netflix
+      dialogue-gated, Spotify, Apple, YouTube, ACX audiobook),
+      check_compliance (pass/fail per criterion), master_for (master to spec,
+      re-verify, delivery export)
+- [ ] 3. Dialogue suite: breath_control, deplosive and duck_music chain
+      steps + dialogue-polish recipe, with tests
+- [ ] 4. DAW export: export_markers (Audition CSV, Audacity labels, JSON)
+      from the region timeline; delivery I/O (SRC + bit depth)
+- [ ] 5. Extensive English docs under docs/ (tool reference, workflows
+      cookbook, compliance guide, smart regions, recipe format,
+      architecture) + README links
+- [ ] 6. Morning report, memory, everything pushed, CI green
 
-Bonus fixes that fell out of live testing: session-id collision (two
-sessions on the same file within one second overwrote each other), noise
-reference floor clamped to -80 dB, boom-inside-hum suppression.
-
-## Rules (unchanged from the previous night)
+## Rules (unchanged)
 
 - Python 3.11, numpy<2, torch<2.9 — don't touch the pins (see CLAUDE.md).
 - Never pollute stdout in server code; lazy-load heavy models.
 - New MCP tools also go into tests/test_mcp_tools.py EXPECTED and scripts/mcp_smoke.py.
-- Test audio lives in upload/ (git-ignored); sessions in ~/AudioImprove/sessions.
 - After each feature: uv run pytest -q green -> git commit.

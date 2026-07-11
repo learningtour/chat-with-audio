@@ -60,6 +60,98 @@ def _true_peak_db(x: np.ndarray, sr: int) -> float:
     return float(_db(np.abs(up).max()))
 
 
+def _momentary_lufs_max(x: np.ndarray, sr: int) -> float | None:
+    """Hoogste momentary loudness (400 ms-vensters, EBU-terminologie)."""
+    import pyloudnorm as pyln
+
+    n = x.shape[1]
+    win = int(0.4 * sr)
+    if n < win:
+        return None
+    hop = int(0.2 * sr) if n / sr <= 1800 else sr  # lange bestanden: grover raster
+    meter = pyln.Meter(sr, block_size=0.4)
+    best = None
+    for start in range(0, n - win + 1, hop):
+        seg = x[:, start:start + win]
+        data = seg.T if seg.shape[0] > 1 else seg[0]
+        v = float(meter.integrated_loudness(np.asarray(data, dtype=np.float64)))
+        if math.isfinite(v) and v > -70.0 and (best is None or v > best):
+            best = v
+    return best
+
+
+def _stereo_qc(x: np.ndarray) -> dict | None:
+    """Technische stereo-checks (eerste twee kanalen): fasecorrelatie, balans,
+    dood kanaal, dual-mono en polariteitsinversie — de standaard QC-lijst."""
+    if x.shape[0] < 2:
+        return None
+    left = x[0].astype(np.float64)
+    right = x[1].astype(np.float64)
+    e_l, e_r = float(np.mean(left**2)), float(np.mean(right**2))
+    silent = 1e-12
+    dead = None
+    if e_l > silent and e_r <= max(e_l * 1e-6, silent):
+        dead = "right"
+    elif e_r > silent and e_l <= max(e_r * 1e-6, silent):
+        dead = "left"
+
+    if e_l <= silent or e_r <= silent:
+        corr = None
+    else:
+        corr = float(np.mean(left * right) / (np.sqrt(e_l * e_r) + 1e-20))
+    balance = (round(10.0 * np.log10((e_l + 1e-20) / (e_r + 1e-20)), 1)
+               if dead is None else None)
+
+    mid = 0.5 * float(np.mean((left + right) ** 2))
+    side = 0.5 * float(np.mean((left - right) ** 2))
+    dual_mono = bool(corr is not None and corr > 0.999
+                     and side < mid * 1e-6)
+
+    return {
+        "correlation": round(corr, 3) if corr is not None else None,
+        "balance_db": balance,
+        "dead_channel": dead,
+        "dual_mono": dual_mono,
+        "polarity_inverted": bool(corr is not None and corr < -0.9),
+    }
+
+
+def _detect_dropouts(mono: np.ndarray, sr: int, max_report: int = 5) -> dict:
+    """Digitale dropouts: exacte-stilte-gaten midden in signaal (3 ms - 0.5 s),
+    met hoorbaar materiaal direct ervoor en erna."""
+    tiny = np.abs(mono) < 1e-7
+    edges = np.diff(np.concatenate([[0], tiny.astype(np.int8), [0]]))
+    starts, ends = np.where(edges == 1)[0], np.where(edges == -1)[0]
+    min_len, max_len = int(0.003 * sr), int(0.5 * sr)
+    ctx = int(0.05 * sr)
+
+    def _active(a: int, b: int) -> bool:
+        seg = mono[max(0, a):b]
+        if seg.size == 0:
+            return False
+        return 10.0 * np.log10(np.mean(seg.astype(np.float64) ** 2) + 1e-20) > -50.0
+
+    positions = []
+    for a, b in zip(starts, ends, strict=True):
+        if not (min_len <= b - a <= max_len):
+            continue
+        if _active(a - ctx, a) and _active(b, b + ctx):
+            positions.append(round(a / sr, 3))
+    return {"count": len(positions), "positions_s": positions[:max_report]}
+
+
+def _edge_silence(frames_db: np.ndarray, frame_s: float, noise_floor: float) -> tuple[float, float]:
+    """Stilteduur aan kop en staart (frames onder vloer+6 dB, minimaal -60)."""
+    thr = max(noise_floor + 6.0, -60.0)
+    active = frames_db > thr
+    if not active.any():
+        dur = len(frames_db) * frame_s
+        return round(dur, 2), round(dur, 2)
+    first = int(np.argmax(active))
+    last = len(active) - 1 - int(np.argmax(active[::-1]))
+    return round(first * frame_s, 2), round((len(active) - 1 - last) * frame_s, 2)
+
+
 def _detect_hum(mono: np.ndarray, sr: int) -> dict:
     if mono.shape[0] < sr:
         return {"detected": False}
@@ -176,15 +268,20 @@ def analyze(x: np.ndarray, sr: int) -> dict:
     lra = float(np.percentile(st, 95) - np.percentile(st, 10)) if len(st) >= 4 else None
 
     lufs = measure_lufs(x, sr)
+    true_peak = _true_peak_db(x, sr)
+    momentary = _momentary_lufs_max(x, sr)
+    lead_s, tail_s = _edge_silence(frames, 0.025, noise_floor)
     metrics = {
         "duration_s": round(n / sr, 2),
         "sample_rate": sr,
         "channels": int(x.shape[0]),
         "lufs_integrated": round(lufs, 2) if lufs is not None else None,
         "lufs_short_term_max": round(max(st), 2) if st else None,
+        "lufs_momentary_max": round(momentary, 2) if momentary is not None else None,
         "lra_db": round(lra, 1) if lra is not None else None,
         "sample_peak_db": round(peak_db, 2),
-        "true_peak_dbtp": round(_true_peak_db(x, sr), 2),
+        "true_peak_dbtp": round(true_peak, 2),
+        "plr_db": round(true_peak - lufs, 1) if lufs is not None else None,
         "rms_db": round(rms_db, 2),
         "crest_factor_db": round(peak_db - rms_db, 1),
         "noise_floor_db": round(noise_floor, 1),
@@ -193,6 +290,10 @@ def analyze(x: np.ndarray, sr: int) -> dict:
         "clipped_samples": clipped,
         "clip_events": clip_events,
         "dc_offset": round(float(np.abs(x.mean(axis=1)).max()), 5),
+        "lead_silence_s": lead_s,
+        "tail_silence_s": tail_s,
+        "dropouts": _detect_dropouts(mono, sr),
+        "stereo": _stereo_qc(x),
         "hum": _detect_hum(mono, sr),
         "resonances": _detect_resonances(mono, sr),
     }
@@ -285,6 +386,47 @@ def score_and_issues(m: dict, target_lufs: float = -15.0) -> tuple[dict, list[di
         issues.append({"severity": "low", "code": "dc_offset",
                        "message": f"DC-offset aanwezig ({m['dc_offset']}).",
                        "suggestion": "improve_audio (highpass verwijdert dit)"})
+
+    stereo = m.get("stereo") or {}
+    if stereo.get("dead_channel"):
+        clarity -= 20
+        issues.append({"severity": "high", "code": "dead_channel",
+                       "message": f"Stereobestand met een dood kanaal "
+                                  f"({stereo['dead_channel']}) — half beeld.",
+                       "suggestion": "als mono aanleveren of het goede kanaal dupliceren"})
+    if stereo.get("polarity_inverted"):
+        clarity -= 20
+        issues.append({"severity": "high", "code": "polarity_inverted",
+                       "message": f"Kanalen in tegenfase (correlatie "
+                                  f"{stereo.get('correlation')}) — valt weg bij "
+                                  "mono-weergave (tv, telefoon, smartspeaker).",
+                       "suggestion": "polariteit van één kanaal omdraaien in de DAW"})
+    if stereo.get("dual_mono"):
+        issues.append({"severity": "low", "code": "dual_mono",
+                       "message": "Stereobestand met identieke kanalen (dual-mono).",
+                       "suggestion": "als mono aanleveren scheelt de helft in "
+                                     "bestandsgrootte; klinkt identiek"})
+    bal = stereo.get("balance_db")
+    if bal is not None and abs(bal) > 3.0:
+        issues.append({"severity": "medium", "code": "unbalanced",
+                       "message": f"Stereo-balans scheef ({bal:+.1f} dB links t.o.v. rechts).",
+                       "suggestion": "apply_chain met gain per kanaal, of pan corrigeren"})
+
+    drops = m.get("dropouts") or {}
+    if drops.get("count"):
+        clarity -= 25
+        pos = ", ".join(f"{p:.1f}s" for p in drops.get("positions_s", [])[:3])
+        issues.append({"severity": "high", "code": "dropouts",
+                       "message": f"{drops['count']} digitale dropout(s) gedetecteerd "
+                                  f"(o.a. rond {pos}).",
+                       "suggestion": "bron opnieuw exporteren/overzetten; repair_audio "
+                                     "kan korte gaten niet betrouwbaar vullen"})
+
+    for edge, key in (("kop", "lead_silence_s"), ("staart", "tail_silence_s")):
+        if (m.get(key) or 0) > 3.0:
+            issues.append({"severity": "low", "code": f"{key}",
+                           "message": f"{m[key]:.1f} s stilte aan de {edge} van het bestand.",
+                           "suggestion": "wegknippen voor aflevering"})
 
     scores = {
         "loudness": loudness,
