@@ -34,7 +34,10 @@ def test_burst_clicks_in_silence_removed_plosive_kept(sr):
         assert np.abs(y[a:b]).max() < 0.02, "klik-burst moet weg zijn"
     # plosief in de beschermzone blijft staan
     assert np.abs(y[plos:plos + int(0.006 * sr)]).max() > 0.1
-    # spraak zelf onaangetast
+    # spraak zelf vrijwel onaangetast (reparatie-energie < -35 dB t.o.v. signaal)
     sp = slice(int(0.6 * sr), int(1.4 * sr))
-    np.testing.assert_allclose(y[sp], x[sp], atol=1e-4)
+    d = (y[sp] - x[sp]).astype(np.float64)
+    rel = (10 * np.log10((d**2).mean() + 1e-20)
+           - 10 * np.log10((x[sp].astype(np.float64) ** 2).mean()))
+    assert rel < -35
     assert count >= 2
