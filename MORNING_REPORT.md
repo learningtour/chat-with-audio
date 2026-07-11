@@ -1,74 +1,75 @@
-# Ochtendrapport — nachtbouw 10/11 juli 2026
+# Morning report — overnight build, July 10/11, 2026
 
-Goedemorgen! De toolkit is vannacht uitgegroeid van "audio verbeteren" naar een
-volwaardige chat-gestuurde audiostudio met **15 MCP-tools**. Alles is getest
-(33 tests groen) en per feature gecommit.
+Good morning! Overnight the toolkit grew from "improving audio" into a
+full-fledged chat-driven audio studio with **15 MCP tools**. Everything is
+tested (33 tests green) and committed per feature.
 
-## Nieuw vannacht
+## New tonight
 
-| Feature | Vraag het in de chat | Detail |
+| Feature | Ask in the chat | Detail |
 |---|---|---|
-| **Declip + declick** | "herstel de clips" | Golfvorm-reconstructie via splines; improve doet declip nu automatisch (jouw musical-bestand heeft 70 echte clips!) |
-| **Stem-separatie** | "splits de stems" | Demucs AI: vocals / drums / bass / other als losse wav's voor je DAW |
-| **Rebalance / karaoke** | "zang 3 dB erbij", "maak een karaoke-versie" | Per-stem gains, dynamiek-veilige gain-staging, A/B-sessie |
-| **Residu-beluistering** | knop **R · verschil** in de viewer (toets r) | Hoor exact wat de bewerking veranderde — de artefact-detector voor je oren; werkt ook op alle oude sessies |
-| **Reference matching** | "laat dit klinken als <referentie>" | 1/3-octaaf match-EQ (begrensd) + loudness-match; voor consistente afleveringen |
-| **De-esser** | automatisch bij spraak | Spectraal, dempt alleen frames waar s-klanken echt uitschieten |
-| **Resonantiedetectie** | automatisch | Smalle pieken (dozige room-resonanties) worden gedetecteerd en gericht weggenomen |
-| **Batchverwerking** | "doe de hele map" | improve_folder: improve/refine/optimize per bestand |
-| **Whisper-medium scheidsrechter** | optimize_audio(judge_model="medium") | Strengere verstaanbaarheidsjury voor nachtruns |
+| **Declip + declick** | "fix the clips" | Waveform reconstruction via splines; improve now declips automatically (your musical file has 70 real clips!) |
+| **Stem separation** | "split the stems" | Demucs AI: vocals / drums / bass / other as separate wavs for your DAW |
+| **Rebalance / karaoke** | "vocals up 3 dB", "make a karaoke version" | Per-stem gains, dynamics-safe gain staging, A/B session |
+| **Residual listening** | button **R · difference** in the viewer (key r) | Hear exactly what the processing changed — the artifact detector for your ears; also works on all old sessions |
+| **Reference matching** | "make this sound like <reference>" | 1/3-octave match EQ (bounded) + loudness match; for consistent episodes |
+| **De-esser** | automatic on speech | Spectral, only attenuates frames where s-sounds genuinely spike |
+| **Resonance detection** | automatic | Narrow peaks (boxy room resonances) are detected and removed surgically |
+| **Batch processing** | "do the whole folder" | improve_folder: improve/refine/optimize per file |
+| **Whisper-medium referee** | optimize_audio(judge_model="medium") | Stricter intelligibility jury for overnight runs |
 
-## De nachtrun op jouw testbestand — met een verrassing
+## The overnight run on your test file — with a surprise
 
-De diepe run met de **strengere Whisper-medium-jury** kantelt de ranglijst:
+The deep run with the **stricter Whisper-medium jury** flips the ranking:
 
-| Variant | Retentie (medium-jury) |
+| Variant | Retention (medium jury) |
 |---|---|
-| **rustig-geen-ai** (winnaar, sessie 20260711-000738) | **75%** |
-| basis-geen-ai | 66% |
-| dereverb-deess-rustig | 53% |
-| dereverb-varianten | 38-47% |
+| **calm-no-ai** (winner, session 20260711-000738) | **75%** |
+| basic-no-ai | 66% |
+| dereverb-deess-calm | 53% |
+| dereverb variants | 38-47% |
 
-De small-jury van gisteravond vond dereverb beter; de medium-jury (veel
-sterker in Nederlands) hoort dat dereverb-artefacten woorden kosten. Les:
-**de kalme DSP-keten zonder AI-nabewerking is op dit materiaal de beste** —
-en de jury-kwaliteit bepaalt mede de uitslag. Beide sessies staan in de
-viewer; luister zelf welke jouw oren kiezen. Jouw oordeel kun je nu ook
-vastleggen met rate_audio (dat traint het smaakmodel).
+Last night's small jury preferred dereverb; the medium jury (much stronger in
+Dutch) hears that dereverb artifacts cost words. Lesson: **the calm DSP chain
+without AI post-processing is the best on this material** — and the quality of
+the jury partly determines the outcome. Both sessions are in the viewer;
+listen for yourself and let your ears decide. You can now also record your
+verdict with rate_audio (which trains the taste model).
 
-## Later op de nacht bijgebouwd (jouw 3 richtingen)
+## Built later in the night (your 3 directions)
 
-1. **view_audio** — perceptueel paneel dat ik als AI zelf kan bekijken:
-   gehoorschaal-spectrogrammen, verschilkaart (rood = toegevoegd, blauw =
-   weggehaald), levelcurves. Zelftest gedaan: ik kon de leveling, ducking en
-   highpass er direct in aanwijzen.
-2. **rate_audio + smaakmodel** — label 'good'/'bad'; vanaf 2+2 voorbeelden
-   krijgt elke analyse een taste_score met uitleg welke eigenschappen afwijken
-   van jouw 'goed'-voorbeelden.
-3. **export_to_audition** — stems (Demucs) + .sesx-multitracksessie voor
-   Adobe Audition 2024 (gevonden op deze Mac). Demo staat klaar in de
-   sessiemap van de nachtrun-winnaar (audition/), nog niet geopend.
+1. **view_audio** — a perceptual panel that I as an AI can inspect myself:
+   auditory-scale spectrograms, difference map (red = added, blue = removed),
+   level curves. Self-test done: I could point out the leveling, ducking and
+   highpass in it directly.
+2. **rate_audio + taste model** — label 'good'/'bad'; from 2+2 examples onward
+   every analysis gets a taste_score explaining which properties deviate from
+   your 'good' examples.
+3. **export_to_audition** — stems (Demucs) + .sesx multitrack session for
+   Adobe Audition 2024 (found on this Mac). A demo is ready in the session
+   folder of the overnight winner (audition/), not opened yet.
 
-## Waar alles staat
+## Where everything lives
 
-- Viewer: http://127.0.0.1:8471 (`open de viewer` in de chat)
-- Sessies: `~/AudioImprove/sessions/` — nieuwste bovenaan in de viewer
-- Roadmap + status: `NIGHT_ROADMAP.md`; gebruikersdocs: `README.md`
-- Let op: Claude Desktop herstarten + eenmalige goedkeuring in Claude Code
-  zijn nog steeds nodig om de tools daar te zien (config staat klaar)
+- Viewer: http://127.0.0.1:8471 ("open the viewer" in the chat)
+- Sessions: `~/AudioImprove/sessions/` — newest on top in the viewer
+- Roadmap + status: `NIGHT_ROADMAP.md`; user docs: `README.md`
+- Note: restarting Claude Desktop + a one-time approval in Claude Code are
+  still needed to see the tools there (the config is ready)
 
-## Eerlijke aantekeningen
+## Honest notes
 
-- De R-knop (residu) is via HTTP en syntaxcheck geverifieerd, maar nog niet in
-  een echte browser beluisterd (Chrome-extensie was 's nachts niet verbonden).
-- Stem-separatie op het musical-bestand behandelt gesproken dialoog als
-  "vocals" — dat is correct gedrag van Demucs, maar even wennen.
-- Dereverb (ClearVoice) draait alleen op spraaksegmenten; muziek-dereverb staat
-  bewust uit (sloopt de mix).
+- The R button (residual) has been verified via HTTP and a syntax check, but
+  not yet listened to in a real browser (the Chrome extension wasn't connected
+  during the night).
+- Stem separation on the musical file treats spoken dialogue as "vocals" —
+  that's correct Demucs behavior, but takes some getting used to.
+- Dereverb (ClearVoice) only runs on speech segments; music dereverb is
+  deliberately off (it wrecks the mix).
 
-## Ideeën voor de volgende sessie (niet gebouwd, wel doordacht)
+## Ideas for the next session (not built, but thought through)
 
-1. Voorkeuren-geheugen: "ik vind B beter" → de tool leert jouw smaak als preset.
-2. Spraak-superresolutie (ClearVoice SR-model) voor oude/doffe opnames.
-3. Meersporen-export (stems + verbeterde mix) als sessie-zip voor productiehuizen.
-4. Windows-test + GitHub-repo publiceren als je dat wilt — de vakbladen, weet je nog.
+1. Preference memory: "I like B better" → the tool learns your taste as a preset.
+2. Speech super-resolution (ClearVoice SR model) for old/dull recordings.
+3. Multitrack export (stems + improved mix) as a session zip for production houses.
+4. Windows test + publishing the GitHub repo if you want — the trade press, remember.
