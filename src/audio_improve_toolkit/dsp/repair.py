@@ -61,9 +61,16 @@ def declip(x: np.ndarray, sr: int, max_gap_ms: float = 4.0) -> tuple[np.ndarray,
     return out, total
 
 
-def declick(x: np.ndarray, sr: int, threshold: float = 6.0,
+def declick(x: np.ndarray, sr: int, threshold: float = 8.0,
             window_ms: float = 0.7) -> tuple[np.ndarray, int]:
-    """Verwijder klikken/impulsen; geeft (audio, aantal gerepareerde klikken)."""
+    """Verwijder klikken/impulsen; geeft (audio, aantal gerepareerde klikken).
+
+    De detectieschaal is lokaal (~25 ms): een klik moet boven zijn dírecte
+    omgeving uitsteken. Een globale schaal zou bij materiaal met veel stilte
+    (bv. spraakberichten) normale spraaktextuur als klik aanzien.
+    """
+    from scipy.ndimage import uniform_filter1d
+
     x2 = x[None, :] if x.ndim == 1 else x
     out = x2.astype(np.float32).copy()
     win = max(3, int(window_ms / 1000 * sr) | 1)  # oneven
@@ -72,8 +79,9 @@ def declick(x: np.ndarray, sr: int, threshold: float = 6.0,
         ch = out[ci]
         med = median_filter(ch, size=win, mode="nearest")
         resid = ch - med
-        sigma = float(np.median(np.abs(resid))) * 1.4826 + 1e-9
-        mask = np.abs(resid) > threshold * sigma
+        local = uniform_filter1d(np.abs(resid), size=max(3, int(0.025 * sr)),
+                                 mode="nearest") * 1.4826
+        mask = np.abs(resid) > threshold * np.maximum(local, 1e-4)
         # alleen korte impulsen (max ~1.5 ms), geen transienten van muziek/spraak
         max_len = max(2, int(0.0015 * sr))
         edges = np.diff(np.concatenate([[0], mask.astype(np.int8), [0]]))
