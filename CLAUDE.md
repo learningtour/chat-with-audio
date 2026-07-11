@@ -54,7 +54,10 @@ uv run ait viewer                                 # viewer on :8471
   drag file edges toward zero.
 - `markers.py` → region map → Audition marker CSV + Audacity labels + JSON
   (`export_markers`).
-- `server.py` — 25 MCP tools; `sessions.py` — session folders under
+- `dsp/roomtone.py` → room-tone fill: digitale gaten vullen met geshuffelde
+  overlap-add van de eigen ambience (`fill_room_tone`); `qcsheet.py` →
+  markdown-QC-rapport (`qc_report`).
+- `server.py` — 27 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.

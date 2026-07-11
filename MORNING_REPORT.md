@@ -2,7 +2,7 @@
 
 Good morning! Tonight's assignment: judge the software as a sound designer,
 make it 200% better toward industry standard, and write extensive English
-documentation. Everything landed: **78 tests green, 25 MCP tools, CI green,
+documentation. Everything landed: **85 tests green, 27 MCP tools, CI green,
 seven documentation guides, all pushed.**
 
 ## The sound designer's verdict (before tonight)
@@ -48,10 +48,19 @@ Audacity label track and JSON — "hum here, noise there" becomes navigable
 markers in the editor.
 
 ### 5. Extensive English documentation (`docs/`)
-Seven guides: getting started, full 25-tool reference, workflows cookbook
+Seven guides: getting started, full tool reference, workflows cookbook
 (podcast, broadcast delivery, film dialogue, rescue, music, archive
 consistency, incoming-file QC), delivery compliance, smart regions,
 recipes, architecture. The README links them all.
+
+### 6. Bonus round (the 8 hours weren't over)
+- **`fill_room_tone`** — the dialogue editor's classic: digital gaps
+  (dropouts, edit holes, ADR joins) get filled with shuffled, overlap-added
+  pieces of the file's *own* quietest ambience — continuous room, never a
+  loop, everything outside the gaps bit-for-bit untouched.
+- **`qc_report`** — one printable markdown QC sheet per file: all
+  measurements, technical QC, findings with severity, optional delivery
+  check. The paper a facility wants.
 
 ## Bugs the build process itself caught (and fixed)
 
@@ -74,8 +83,8 @@ interoperates with the DAWs where finishing happens. What still separates it
 from a full Hollywood dialogue stack: true overlapping music/dialogue
 separation-based ducking (we have the honest segment-level version +
 Demucs rebalance), spectral repair painting (interpolating a damaged
-time-frequency patch), room-tone matching/fill for ADR, and multichannel
-(5.1/Atmos) delivery. Those are the next mountain — see ideas below.
+time-frequency patch), and multichannel (5.1/Atmos) delivery. Those are
+the next mountain — see ideas below.
 
 ## Where everything lives
 
@@ -87,12 +96,11 @@ time-frequency patch), room-tone matching/fill for ADR, and multichannel
 
 ## Ideas for a next session (not built, thought through)
 
-1. Room-tone fill: sample the file's own ambience and fill edit gaps/ADR
-   joins — the classic dialogue-editor request.
-2. Spectral repair painting: interpolate over a damaged time-frequency
+1. Spectral repair painting: interpolate over a damaged time-frequency
    region (cough over speech, chair squeak in music).
-3. Stems-based `duck_music` mode for overlapping speech+music (Demucs
+2. Stems-based `duck_music` mode for overlapping speech+music (Demucs
    sidechain), as an opt-in heavy variant.
-4. Multichannel: 5.1 pass-through with per-channel QC and downmix checks.
-5. A `qc_report` tool that renders one printable QC sheet (PDF) per file —
-   facilities love paper.
+3. Multichannel: 5.1 pass-through with per-channel QC and downmix checks.
+4. Batch QC: `qc_report` over a folder with a summary index — incoming
+   deliveries QC'd in one command.
+5. A README hero screenshot of the viewer (worth showing off now).

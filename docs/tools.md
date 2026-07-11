@@ -1,6 +1,6 @@
 # Tool reference
 
-All 25 MCP tools, grouped by job. Every processing tool creates a **session**
+All 27 MCP tools, grouped by job. Every processing tool creates a **session**
 (A/B audio, analyses, chain + rationale, timeline, provenance log) and
 returns its `session_id` plus a `viewer_url`. File inputs accept wav, mp3,
 m4a/aac, flac, ogg and aiff; `out_path` exports to the format matching its
@@ -33,6 +33,12 @@ will hear.
 ### `transcribe_audio(file_path, model_size="small", language="nl", start_s, end_s)`
 Whisper transcription (requires the `asr` extra). Used standalone or as an
 intelligibility check: transcribe original and processed, compare.
+
+### `qc_report(file_path, spec=None, out_path=None)`
+One readable markdown QC sheet per file — the report a facility wants to see
+before accepting a delivery: file info, loudness measurements, technical QC,
+findings with severity, and (with `spec`) the delivery compliance check.
+Saved into the session, exportable, returned inline.
 
 ---
 
@@ -85,6 +91,12 @@ viewer and can be exported as DAW markers.
 ### `repair_audio(file_path, declip=True, declick=True, out_path=None)`
 Restoration only: declip (spline waveform reconstruction, also for 32-bit
 float capsule overload) and declick (impulse repair). Nothing else changes.
+
+### `fill_room_tone(file_path, out_path=None)`
+The dialogue editor's classic: samples the file's own quietest real ambience
+and fills digital gaps (dropouts, edit holes, ADR joins) with shuffled,
+overlap-added pieces of it — continuous room, never a loop. Only
+exact-silence gaps are filled; everything else stays bit-for-bit untouched.
 
 ---
 
