@@ -10,7 +10,8 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "improve_folder", "view_audio", "rate_audio", "export_to_audition",
             "list_sessions", "open_viewer", "smart_edit",
             "list_recipes", "save_recipe", "apply_recipe",
-            "check_compliance", "master_for", "export_markers"}
+            "check_compliance", "master_for", "export_markers",
+            "fill_room_tone", "qc_report"}
 
 
 def test_tool_registry():
@@ -134,6 +135,49 @@ def test_export_markers_needs_regions(noisy_wav):
     res = server.analyze_audio(str(noisy_wav), create_session=True)
     with pytest.raises(ValueError, match="regio's|tijdlijndata"):
         server.export_markers(res["session_id"])
+
+
+def test_fill_room_tone_tool(tmp_path, sr):
+    import numpy as np
+    import soundfile as sf
+
+    rng = np.random.default_rng(4)
+    t = np.arange(sr * 10) / sr
+    speech = (0.1 * np.sin(2 * np.pi * 300 * t)
+              * (np.sin(2 * np.pi * 5.0 * t) > 0)
+              * (np.sin(2 * np.pi * 0.25 * t) > -0.3))
+    x = (speech + rng.normal(0, 10 ** (-52 / 20), t.size)).astype(np.float32)
+    x[int(4 * sr):int(4.3 * sr)] = 0.0
+    p = tmp_path / "gat.wav"
+    sf.write(str(p), x, sr)
+    res = server.fill_room_tone(str(p))
+    assert len(res["filled"]) == 1
+    assert res["donor"]["end_s"] > res["donor"]["start_s"]
+
+    # schoon bestand: duidelijke no-op-melding, geen sessie
+    p2 = tmp_path / "schoon.wav"
+    sf.write(str(p2), (speech + rng.normal(0, 10 ** (-52 / 20), t.size)
+                       ).astype(np.float32), sr)
+    res2 = server.fill_room_tone(str(p2))
+    assert res2["filled"] == [] and "message" in res2
+
+
+def test_qc_report_tool(tmp_path, noisy_wav):
+    res = server.qc_report(str(noisy_wav), spec="ebu-r128",
+                           out_path=str(tmp_path / "qc.md"))
+    sheet = res["report_markdown"]
+    assert "# QC-rapport" in sheet
+    assert "Integrated loudness" in sheet
+    assert "Aflever-check" in sheet and "EBU R128" in sheet
+    assert res["passed_compliance"] is False  # ruwe testfile haalt -23 niet
+    from pathlib import Path
+
+    assert Path(res["report_path"]).is_file()
+    assert Path(res["export_path"]).read_text() == sheet
+
+    res2 = server.qc_report(str(noisy_wav))
+    assert res2["passed_compliance"] is None
+    assert "Aflever-check" not in res2["report_markdown"]
 
 
 def test_smart_edit_clean_file_does_nothing(tmp_path, sr):

@@ -976,6 +976,54 @@ def export_to_audition(session_id: str | None = None, file_path: str | None = No
 
 
 @mcp.tool()
+def fill_room_tone(file_path: str, out_path: str | None = None,
+                   user_request: str = "") -> dict:
+    """Vul digitale gaten met de room tone van de opname zelf (dialoogbewerking).
+
+    Een dropout, edit-gat of ADR-las valt op doordat de 'lucht' van de opname
+    wegvalt. Deze tool bemonstert de rustigste echte ambience van het bestand
+    en vult exacte-stilte-gaten met geshuffelde, overlappende stukjes daarvan —
+    het klinkt als doorlopende ruimte, nooit als loop. Natuurlijke stilte
+    (die al room tone bevat) en alles buiten de gaten blijven bit-voor-bit
+    onaangetast. Zonder gaten of zonder bruikbare ambience legt het resultaat
+    uit waarom er niets is gedaan.
+    """
+    from chat_with_audio.dsp.roomtone import fill_room_tone as _fill
+    from chat_with_audio.regions import fmt_ts
+
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    y, info = _fill(x, sr)
+    if not info["filled"]:
+        return {"filled": [], "message": f"Niets gevuld: {info['reason']}."}
+    m1 = analysis.analyze(y, sr)
+    spans = ", ".join(fmt_ts(f["start_s"]) for f in info["filled"][:6])
+    rationale = [f"{len(info['filled'])} digitale gat(en) gevuld met de eigen room "
+                 f"tone (donor: {info['donor']['start_s']}-{info['donor']['end_s']} s); "
+                 f"posities: {spans}.",
+                 "Alles buiten de gaten is bit-voor-bit onaangetast."]
+    session = sessions.create_session(
+        file_path, x, sr, m0, y, m1,
+        [{"type": "room_tone_fill", "holes": info["filled"],
+          "donor": info["donor"]}],
+        rationale, None, label=f"{Path(file_path).name} — room tone",
+        user_request=user_request or None)
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "filled": info["filled"],
+        "donor": info["donor"],
+        "rationale": rationale,
+        "deltas": session["deltas"],
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def export_markers(session_id: str, out_dir: str | None = None,
                    include_segments: bool = False) -> dict:
     """Exporteer de AI-regiokaart van een sessie als DAW-markers.
@@ -1000,6 +1048,57 @@ def export_markers(session_id: str, out_dir: str | None = None,
     result = markers_mod.write_markers(timeline, d, include_segments=include_segments)
     result["hint"] = ("Audition: Markers-paneel > import; Audacity: "
                       "File > Import > Labels.")
+    return result
+
+
+@mcp.tool()
+def qc_report(file_path: str, spec: str | None = None,
+              out_path: str | None = None) -> dict:
+    """Genereer één leesbaar QC-rapport (markdown) voor een bestand.
+
+    De sheet die een facility wil zien vóór acceptatie: bestandsgegevens,
+    loudness-metingen (integrated/short-term/momentary, true peak, PLR),
+    technische QC (stereo, dropouts, clipping, DC, kop/staart-stilte),
+    bevindingen met ernst en suggestie, en — met spec — de aflever-check
+    (zie check_compliance voor de spec-lijst). Het rapport wordt in de
+    sessiemap gezet (qc_report.md) en optioneel naar out_path geschreven;
+    de inhoud komt ook mee in het resultaat zodat je er direct over kunt
+    doorpraten.
+    """
+    from chat_with_audio import compliance as comp
+    from chat_with_audio import qcsheet
+
+    x, sr = io.load_audio(file_path)
+    m = analysis.analyze(x, sr)
+    scores, issues = analysis.score_and_issues(m)
+    report = None
+    if spec:
+        dlg = None
+        if comp.SPECS.get(spec, {}).get("gating") == "dialogue":
+            from chat_with_audio.segments import classify_segments
+
+            dlg = comp.dialogue_loudness(x, sr, classify_segments(x, sr))
+        report = comp.check(m, spec, dialogue_lufs=dlg)
+    sheet = qcsheet.build_qc_sheet(str(Path(file_path).expanduser()),
+                                   io.probe(file_path), m, scores, issues,
+                                   compliance_report=report)
+    session = sessions.create_session(file_path, x, sr, m,
+                                      label=f"{Path(file_path).name} — QC")
+    d = sessions.session_path(session["session_id"])
+    (d / "qc_report.md").write_text(sheet)
+    result = {
+        "session_id": session["session_id"],
+        "report_path": str(d / "qc_report.md"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "passed_compliance": report["passed"] if report else None,
+        "issues": issues,
+        "report_markdown": sheet,
+    }
+    if out_path:
+        out = Path(out_path).expanduser()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(sheet)
+        result["export_path"] = str(out)
     return result
 
 
