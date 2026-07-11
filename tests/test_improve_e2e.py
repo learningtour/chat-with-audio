@@ -30,7 +30,7 @@ def test_improve_end_to_end(tmp_path, sr, noisy_wav):
                  "analysis_processed.json", "chain.json", "session.json",
                  "waveform_original.json", "waveform_processed.json",
                  "spectrogram_original.png", "spectrogram_processed.png",
-                 "log.md", "log.json"):
+                 "timeline.json", "log.md", "log.json"):
         assert (d / name).exists(), f"{name} ontbreekt in de sessiemap"
     log = (d / "log.md").read_text()
     for kop in ("## 1. Wat kwam er binnen", "### Audio als data",

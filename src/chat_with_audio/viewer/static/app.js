@@ -26,7 +26,15 @@ const METRIC_LABELS = {
   clip_events: ["Clip-momenten", "down"],
 };
 
+const SEG_LABELS = { speech: "spraak", music: "muziek", silence: "stilte" };
+const REG_LABELS = { hum: "netbrom", noise: "ruis", clip: "clipping", boom: "dreun" };
+
 // ---- sessielijst ----
+function splitLabel(label) {
+  const m = (label || "").match(/^(.*?)\s+—\s+(.+)$/);
+  return m ? { base: m[1], tag: m[2] } : { base: label, tag: null };
+}
+
 function renderList() {
   const ul = $("session-list");
   ul.innerHTML = "";
@@ -34,7 +42,9 @@ function renderList() {
     const li = document.createElement("li");
     li.dataset.id = s.session_id;
     if (current && s.session_id === current.session_id) li.classList.add("active");
-    li.innerHTML = `<div>${s.label}</div><div class="d">${s.created} · ${fmtTime(s.duration_s)}` +
+    const { base, tag } = splitLabel(s.label);
+    li.innerHTML = `<div>${base}${tag ? `<span class="chip">${tag}</span>` : ""}</div>` +
+      `<div class="d">${s.created} · ${fmtTime(s.duration_s)}` +
       (s.has_processed ? "" : " · alleen analyse") + `</div>`;
     li.onclick = () => { location.hash = "#/session/" + s.session_id; };
     ul.appendChild(li);
@@ -95,6 +105,7 @@ async function openSession(id) {
   $("s-meta").textContent =
     `${current.created} · ${fmtTime(current.duration_s)} · ${current.sample_rate} Hz` +
     (current.profile ? ` · profiel: ${current.profile === "speech" ? "spraak" : "muziek"}` : "");
+  renderScoreBadges();
 
   const hasB = current.has_processed;
   listen = hasB ? "b" : "a";
@@ -118,6 +129,7 @@ async function openSession(id) {
     : "A · origineel";
 
   redrawWaves(null);
+  renderTimeline();
   renderMetrics();
   renderChain();
   setSpec("original");
@@ -145,7 +157,51 @@ async function openSession(id) {
   updateTime();
 }
 
-// ---- tabellen & panelen ----
+// ---- panelen ----
+function renderScoreBadges() {
+  const el = $("score-badges");
+  const sA = current.original?.scores, sB = current.processed?.scores;
+  if (!sA) { el.innerHTML = ""; return; }
+  let html = `<span class="badge" title="kwaliteitsscore origineel (0-100)">score ${sA.overall}</span>`;
+  if (sB) html += `<span class="badge-arrow">→</span>` +
+    `<span class="badge after" title="kwaliteitsscore verbeterd (0-100)">${sB.overall}</span>`;
+  el.innerHTML = html;
+}
+
+function renderTimeline() {
+  const box = $("timeline");
+  const tl = current.timeline || {};
+  const segs = tl.segments || [], regs = tl.regions || [];
+  if (!segs.length && !regs.length) { box.hidden = true; return; }
+  box.hidden = false;
+  const dur = current.duration_s || 1;
+  const segLane = $("tl-segments"), regLane = $("tl-regions");
+  segLane.innerHTML = ""; regLane.innerHTML = "";
+
+  const add = (lane, item, cls, label) => {
+    const el = document.createElement("div");
+    el.className = "tl-item " + cls;
+    el.style.left = (item.start_s / dur * 100) + "%";
+    el.style.width = (Math.max(item.end_s - item.start_s, dur * 0.005) / dur * 100) + "%";
+    el.title = `${label} · ${fmtTime(item.start_s)}–${fmtTime(item.end_s)}`;
+    el.onclick = (e) => { e.stopPropagation(); seekTo(item.start_s / dur); };
+    lane.appendChild(el);
+  };
+  for (const s of segs) add(segLane, s, "seg-" + s.kind, SEG_LABELS[s.kind] || s.kind);
+  for (const r of regs) add(regLane, r, "reg-" + r.kind, r.label || REG_LABELS[r.kind] || r.kind);
+  $("tl-regions-row").style.display = regs.length ? "" : "none";
+
+  const legend = [];
+  for (const kind of Object.keys(SEG_LABELS))
+    if (segs.some((s) => s.kind === kind))
+      legend.push(`<span><span class="sw seg-${kind}"></span>${SEG_LABELS[kind]}</span>`);
+  for (const kind of Object.keys(REG_LABELS)) {
+    const n = regs.filter((r) => r.kind === kind).length;
+    if (n) legend.push(`<span><span class="sw reg-${kind}"></span>${REG_LABELS[kind]} (${n})</span>`);
+  }
+  $("tl-legend").innerHTML = legend.join("");
+}
+
 function renderMetrics() {
   const mA = current.original?.metrics || {};
   const mB = current.processed?.metrics || null;
@@ -168,11 +224,6 @@ function renderMetrics() {
     } else {
       html += `<tr><td>${label}</td><td>${a}</td></tr>`;
     }
-  }
-  const sA = current.original?.scores, sB = current.processed?.scores;
-  if (sA) {
-    const b = sB ? `<td>${sB.overall}</td><td></td>` : "";
-    html += `<tr><td>Score (0-100)</td><td>${sA.overall}</td>${b}</tr>`;
   }
   $("metrics").innerHTML = html;
 }
@@ -213,7 +264,9 @@ function drawWave(canvas, wf, playPos = null, gain = 1, ref = null) {
   g.clearRect(0, 0, w, h);
   const n = wf.min.length, mid = h / 2;
   const peak = ref || wfPeak(wf, gain);
-  g.fillStyle = "#3f7fa8";
+  g.fillStyle = "rgba(76,194,255,.14)";
+  g.fillRect(0, mid - 0.5, w, 1);
+  g.fillStyle = "#4a8fc0";
   for (let i = 0; i < n; i++) {
     const x = (i / n) * w;
     const y1 = mid - (wf.max[i] * gain / peak) * (mid - 4);
@@ -279,8 +332,13 @@ async function play() {
   if (srcR) srcR.start(t0, offset);
   srcA.onended = () => { if (playing) { stop(); offset = 0; updateTime(); } };
   startedAt = t0; playing = true;
-  $("btn-play").textContent = "❚❚";
+  setPlayIcon(true);
   tick();
+}
+
+function setPlayIcon(isPlaying) {
+  $("ic-play").hidden = isPlaying;
+  $("ic-pause").hidden = !isPlaying;
 }
 
 function stop(keepOffset = false) {
@@ -289,7 +347,7 @@ function stop(keepOffset = false) {
   srcA = srcB = srcR = null;
   if (playing && keepOffset && ctx) offset += Math.max(0, ctx.currentTime - startedAt);
   playing = false;
-  $("btn-play").textContent = "▶";
+  setPlayIcon(false);
 }
 
 function togglePlay() { playing ? (stop(true), updateTime()) : play(); }

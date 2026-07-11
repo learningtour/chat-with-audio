@@ -91,7 +91,10 @@ def _noise_regions(mono: np.ndarray, sr: int, dur: float) -> list[dict]:
     starts_f = np.arange(0, len(fr) - win_f + 1, hop_f)
     floors = np.array([np.percentile(fr[s:s + win_f], 10) for s in starts_f])
     p90 = np.array([np.percentile(fr[s:s + win_f], 90) for s in starts_f])
-    global_floor = float(np.percentile(floors, 10))
+    # Digitale stilte (bewerkt/gegenereerd materiaal) zou de referentie naar
+    # -200 dB trekken en elke echte vloer als 'ruis' bestempelen met absurde
+    # overmaat-getallen; geen echte opname heeft een ambience onder -80 dB.
+    global_floor = max(float(np.percentile(floors, 10)), -80.0)
 
     excess = floors - global_floor
     # Continue content (muziek zonder pauzes) heeft geen meetbare venstervloer:
@@ -193,8 +196,15 @@ def detect_regions(x: np.ndarray, sr: int, segments: list[dict] | None = None) -
         from chat_with_audio.segments import classify_segments
 
         segments = classify_segments(x2, sr)
-    regions = (_hum_regions(mono, sr, dur) + _noise_regions(mono, sr, dur)
-               + _clip_regions(mono, sr, dur) + _boom_regions(mono, sr, dur, segments))
+    hums = _hum_regions(mono, sr, dur)
+    booms = _boom_regions(mono, sr, dur, segments)
+    # dreun die volledig binnen een bromregio valt ÍS die brom (50/60 Hz zit in
+    # de dreunband): de notch lost hem al op, dubbel ingrijpen is overbodig
+    booms = [b for b in booms
+             if not any(h["start_s"] <= b["start_s"] and b["end_s"] <= h["end_s"]
+                        for h in hums)]
+    regions = (hums + _noise_regions(mono, sr, dur)
+               + _clip_regions(mono, sr, dur) + booms)
     regions.sort(key=lambda r: (r["start_s"], r["kind"]))
     return regions
 

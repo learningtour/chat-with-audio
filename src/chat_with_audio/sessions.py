@@ -43,7 +43,14 @@ def create_session(source_path: str | Path, x_original: np.ndarray, sr: int,
     """
     session_id = time.strftime("%Y%m%d-%H%M%S") + "-" + _slug(str(source_path))
     d = sessions_dir() / session_id
-    d.mkdir(parents=True, exist_ok=True)
+    # twee bewerkingen van hetzelfde bestand binnen één seconde mogen elkaar
+    # nooit overschrijven
+    suffix = 1
+    while d.exists():
+        suffix += 1
+        d = sessions_dir() / f"{session_id}-{suffix}"
+    session_id = d.name
+    d.mkdir(parents=True)
 
     if timeline is None:
         try:
