@@ -225,6 +225,13 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None,
          niveau — voor spraak/muziek-balans; floor_db beschermt stilte/ruis)
       {"type": "limiter", "ceiling_db": -1.5, "release_ms": 60, "lookahead_ms": 5}
       {"type": "loudness_normalize", "target_lufs": -16, "true_peak_db": -1.5}
+      {"type": "breath_control", "reduction_db": 10}
+        (ademhalingen dempen, niet wegknippen — dialoogbewerking)
+      {"type": "deplosive", "cutoff_hz": 120, "sensitivity_db": 6}
+        (p/b-pops: alleen de laagfrequente stoot zelf wordt gehighpasst)
+      {"type": "duck_music", "gap_db": 6}
+        (muziekbedden tussen de spraak naar gap_db onder het spraakniveau;
+         voor muziek ónder spraak: rebalance_music)
 
     Tip: sluit af met een limiter of loudness_normalize als eerdere stappen het
     niveau verhogen.

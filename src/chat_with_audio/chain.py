@@ -277,6 +277,33 @@ def _step_pause_duck(x, sr, duck_db: float = 20.0, speech_floor_db: float = -32.
     return (x2 * env[None, :]).astype(np.float32)
 
 
+def _step_breath_control(x, sr, reduction_db: float = 10.0, max_breath_s: float = 0.9):
+    """Ademhalingen detecteren en dempen (niet wegknippen)."""
+    from chat_with_audio.dsp.dialogue import breath_control
+
+    y, n = breath_control(x, sr, reduction_db=reduction_db, max_breath_s=max_breath_s)
+    log.info("breath_control: %d adem(s)", n)
+    return y
+
+
+def _step_deplosive(x, sr, cutoff_hz: float = 120.0, sensitivity_db: float = 6.0):
+    """Plosief-pops (p/b-drukstoten) alleen op de pop zelf highpassen."""
+    from chat_with_audio.dsp.dialogue import deplosive
+
+    y, n = deplosive(x, sr, cutoff_hz=cutoff_hz, sensitivity_db=sensitivity_db)
+    log.info("deplosive: %d pop(s)", n)
+    return y
+
+
+def _step_duck_music(x, sr, gap_db: float = 6.0, fade_ms: float = 120.0):
+    """Muziekbedden naar gap_db onder het spraakniveau rijden (alleen omlaag)."""
+    from chat_with_audio.dsp.dialogue import duck_music
+
+    y, info = duck_music(x, sr, gap_db=gap_db, fade_ms=fade_ms)
+    log.info("duck_music: %s", info)
+    return y
+
+
 def _step_gate(x, sr, threshold_db: float, attack_ms: float = 5.0,
                release_ms: float = 120.0, hold_ms: float = 50.0, range_db: float = 12.0):
     return dsp.noise_gate(x, sr, threshold_db, attack_ms, release_ms, hold_ms, range_db)
@@ -350,6 +377,9 @@ STEP_REGISTRY = {
     "pause_duck": _step_pause_duck,
     "deess": _step_deess,
     "dereverb": _step_dereverb,
+    "breath_control": _step_breath_control,
+    "deplosive": _step_deplosive,
+    "duck_music": _step_duck_music,
     "gate": _step_gate,
     "compressor": _step_compressor,
     "leveler": _step_leveler,

@@ -1,0 +1,12 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "dialogue-polish",
+  "description": "Filmdialoog-nabewerking: plosief-reparatie, ademdemping (10 dB, niet wegknippen), de-esser en loudness naar -16 LUFS. Behoudend afgesteld: de stem zelf blijft onaangeroerd.",
+  "steps": [
+    {"type": "highpass", "freq": 80},
+    {"type": "deplosive"},
+    {"type": "breath_control", "reduction_db": 10},
+    {"type": "deess"},
+    {"type": "loudness_normalize", "target_lufs": -16, "true_peak_db": -1.5}
+  ]
+}
