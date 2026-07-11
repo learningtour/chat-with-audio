@@ -13,6 +13,7 @@ Chat-driven audio enhancement tool: MCP server (FastMCP, stdio) + C++ DSP core
 uv sync --all-extras                              # build (incl. C++) + all deps
 uv sync --reinstall-package chat-with-audio # after changes in cpp/
 uv run pytest                                     # test suite
+uv run ruff check .                               # lint (also runs in CI)
 uv run python scripts/mcp_smoke.py                # MCP stdio smoke test
 uv run ait analyze <file>                         # dev CLI without MCP
 uv run ait improve <file> [--profile speech|music] [--denoise-method ai]
@@ -30,13 +31,24 @@ uv run ait viewer                                 # viewer on :8471
 - `analysis.py` → metrics dict + `score_and_issues()`; `improve.py` → profile
   detection + rules → (steps, rationale); `chain.py` → `STEP_REGISTRY` + execution
   (incl. `leveler` and segment-driven `smart_denoise`).
+- `regions.py` → smart problem regions: windowed detectors (hum/noise/clip/boom)
+  find where on the timeline something is wrong; per-region mini-chains are
+  applied with raised-cosine crossfades, everything outside stays untouched
+  (`smart_edit` tool). Noise reference floor is clamped to -80 dB; boom regions
+  inside a hum region are dropped (the notch already covers them).
+- `recipes.py` → saved chains as shareable JSON (`save_recipe`/`apply_recipe`/
+  `list_recipes`); built-ins live in `src/chat_with_audio/recipes/`, user
+  recipes in `~/AudioImprove/recipes/` (env `AIT_RECIPES_DIR`; tests isolate
+  this automatically). `chain.validate_steps()` guards every load/save.
 - `segments.py` → speech/music/silence segmentation (level-Otsu primary;
   modulation rhythm as fallback). `refine.py` → iterative measure-and-adjust loop
   (`refine_audio` tool): AI denoising once up front, then adjust leveler/loudness
   until the speech peak and balance are right; silence segments are pushed back
   down afterwards (_duck_silence) because the leveler would otherwise lift them.
-- `server.py` — 18 MCP tools; `sessions.py` — session folders under
-  `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this automatically).
+- `server.py` — 22 MCP tools; `sessions.py` — session folders under
+  `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
+  automatically). Every session writes `timeline.json` (segments + treated
+  regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.
 - `viewer/server.py` — stdlib http.server on 127.0.0.1:8471 (env `AIT_VIEWER_PORT`);
   `viewer/static/app.js` — A/B player: both buffers always play together,
   switching = gain crossfade.

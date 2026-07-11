@@ -33,6 +33,18 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
   right to the decibel. AI denoising is applied only when the speech SNR is low
   AND Whisper confirms intelligibility doesn't drop; the report includes the
   measurement history, the decisions and a final word-retention check.
+- **"Fix it only where something is wrong"** — `smart_edit`: AI finds problem
+  regions on the timeline — mains hum that comes and goes, noise that rises
+  temporarily (AC, traffic), clusters of clipping, a passing low-frequency
+  rumble — and applies a targeted mini-chain per region with crossfades.
+  Everything outside the regions stays bit-for-bit untouched; the region map
+  shows up as a timeline in the viewer. The surgical counterpart to
+  improve_audio.
+- **"Save this as a preset" / "Do this like my podcast preset"** —
+  `save_recipe`, `apply_recipe` and `list_recipes`: keep the chain of a
+  session that sounded right as a named recipe, reuse it on new files, and
+  share it — a recipe is a small JSON file, and apply_recipe also accepts a
+  path to someone else's recipe. Curated presets ship built in.
 - **"Make it even better, take your time"** — `optimize_audio`: runs multiple
   pipeline variants (EQ, leveler, compressor, ClearVoice dereverberation) and
   lets the best one win on an objective score: Whisper word retention/confidence
@@ -63,7 +75,7 @@ Command Line Tools. Python 3.11 is fetched by uv itself.
 ```bash
 cd chat-with-audio
 uv sync --all-extras        # builds the C++ core and installs everything (incl. AI denoise)
-uv run pytest               # 38 tests
+uv run pytest               # 53 tests
 uv run python scripts/mcp_smoke.py   # MCP smoke test
 ```
 
@@ -78,7 +90,7 @@ the tool then falls back to spectral gating automatically.
   Claude Desktop after installing; the tools appear under "chat-with-audio".
 - **Codex CLI/app**: registered as a global MCP server via
   `codex mcp add chat-with-audio -- <uv-path> run --directory <project-folder> chat-with-audio-mcp`
-  (verify with `codex mcp list`). Same 18 tools, same sessions and viewer.
+  (verify with `codex mcp list`). Same 22 tools, same sessions and viewer.
 
 Note: run `uv sync --all-extras` first, otherwise the first server start may
 time out while building/downloading.
@@ -91,8 +103,24 @@ Space = play, **a/b = switch between original and processed**, **r = residual**
 while everything keeps playing in sync. Click the waveform to seek. Change the
 port with the `AIT_VIEWER_PORT` environment variable.
 
+Under the waveforms sits a timeline: a content lane (speech/music/silence) and,
+for smart_edit sessions, an interventions lane showing exactly where which
+problem was treated — click a region to jump there and use **r** to hear what
+was removed.
+
 Sessions live in `~/AudioImprove/sessions/` (override: `AIT_SESSIONS_DIR`), each
-with the original, result, analyses, chain + rationale, waveforms and spectrograms.
+with the original, result, analyses, chain + rationale, timeline, waveforms and
+spectrograms.
+
+## Recipes
+
+A recipe is a saved processing chain as a small JSON file — reusable and
+shareable. Built-in presets (distilled from real sessions) ship with the
+package; your own live in `~/AudioImprove/recipes/` (override:
+`AIT_RECIPES_DIR`). Say "save this as my podcast preset" after a session that
+sounded right, apply it to new files with "do this like my podcast preset",
+and share the JSON file with anyone — `apply_recipe` also takes a file path.
+Steps are validated before anything runs.
 
 ## Windows
 
@@ -113,12 +141,14 @@ with the original, result, analyses, chain + rationale, waveforms and spectrogra
 | Analysis | `analysis.py` | LUFS/LRA (pyloudnorm), true peak, SNR, noise floor, hum, clipping, spectrum, scores + issues |
 | Decision logic | `improve.py` | speech/music detection, rules → chain + rationale |
 | Segmentation | `segments.py` | speech/music/silence timeline (level Otsu + speech modulation) |
+| Smart regions | `regions.py` | windowed problem detectors (hum/noise/clip/boom) + per-region mini-chains with crossfades |
+| Recipes | `recipes.py` | saved chains as shareable JSON; built-in presets + `~/AudioImprove/recipes/` |
 | Refinement loop | `refine.py` | iterative measure → adjust (speech peak, balance, pause floor), Whisper-guarded |
 | Optimization | `optimize.py` | variant contest, scored on intelligibility + targets |
 | Intelligibility | `asr.py` | Whisper transcription + word retention ([asr] extra) |
 | Dereverberation | `dsp/dereverb.py` | ClearVoice MossFormer2 48 kHz, speech segments only ([enhance] extra) |
 | Chain | `chain.py` | step registry (incl. leveler, smart_denoise), loudness normalization |
-| MCP server | `server.py` | 18 tools over stdio (FastMCP) |
+| MCP server | `server.py` | 22 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B player |
 
 Loudness targets: speech −16 LUFS / TP −1.5 dBTP, music −14 LUFS / TP −1.0 dBTP.

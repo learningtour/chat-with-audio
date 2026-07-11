@@ -1,75 +1,81 @@
-# Morning report — overnight build, July 10/11, 2026
+# Morning report — overnight build, July 12/13, 2026
 
-Good morning! Overnight the toolkit grew from "improving audio" into a
-full-fledged chat-driven audio studio with **15 MCP tools**. Everything is
-tested (33 tests green) and committed per feature.
+Good morning! Tonight's assignment: make it a beautiful project, clean up the
+code on GitHub, expand the capabilities, let people reuse what worked, make
+the interface more professional, and process *parts* of the audio chosen by
+smart AI instead of effects over the whole file. All five done, all pushed,
+**53 tests green**, lint clean, CI running on GitHub.
 
-## New tonight
+## The headline: smart_edit — surgery instead of mastering
 
-| Feature | Ask in the chat | Detail |
+The new `smart_edit` tool (the 22-tool set now) finds problem regions on the
+timeline and treats *only* those, with crossfades; everything outside stays
+bit-for-bit untouched (the tests assert exact equality):
+
+| Detector | Finds | Fix, only there |
 |---|---|---|
-| **Declip + declick** | "fix the clips" | Waveform reconstruction via splines; improve now declips automatically (your musical file has 70 real clips!) |
-| **Stem separation** | "split the stems" | Demucs AI: vocals / drums / bass / other as separate wavs for your DAW |
-| **Rebalance / karaoke** | "vocals up 3 dB", "make a karaoke version" | Per-stem gains, dynamics-safe gain staging, A/B session |
-| **Residual listening** | button **R · difference** in the viewer (key r) | Hear exactly what the processing changed — the artifact detector for your ears; also works on all old sessions |
-| **Reference matching** | "make this sound like <reference>" | 1/3-octave match EQ (bounded) + loudness match; for consistent episodes |
-| **De-esser** | automatic on speech | Spectral, only attenuates frames where s-sounds genuinely spike |
-| **Resonance detection** | automatic | Narrow peaks (boxy room resonances) are detected and removed surgically |
-| **Batch processing** | "do the whole folder" | improve_folder: improve/refine/optimize per file |
-| **Whisper-medium referee** | optimize_audio(judge_model="medium") | Stricter intelligibility jury for overnight runs |
+| **hum** | mains hum that comes and goes (fridge, dimmer) | notches at 50/60 Hz + harmonics |
+| **noise** | noise floor rising above the file's cleanest ambience (AC, traffic) | DeepFilterNet on speech, spectral gating elsewhere |
+| **clip** | clusters of clipped peaks | declip around the damage |
+| **boom** | low-frequency rumble dominating a stretch (passing truck) | highpass + lowshelf cut |
 
-## The overnight run on your test file — with a surprise
+Ask it in the chat: *"fix it only where something is wrong"*. The region map
+appears in the result and as a timeline in the viewer.
 
-The deep run with the **stricter Whisper-medium jury** flips the ranking:
+## Recipes — reuse what worked
 
-| Variant | Retention (medium jury) |
-|---|---|
-| **calm-no-ai** (winner, session 20260711-000738) | **75%** |
-| basic-no-ai | 66% |
-| dereverb-deess-calm | 53% |
-| dereverb variants | 38-47% |
+"Save this as my podcast preset" now works: `save_recipe` keeps the chain of
+a session that sounded right as a small JSON file, `apply_recipe` runs it on
+new files (also from a shared file path — recipes are made to be passed
+around), `list_recipes` shows everything. Four curated presets ship built in,
+including **podcast-speech**, distilled from the previous night's winner
+("calm-no-ai", the chain the Whisper jury preferred).
 
-Last night's small jury preferred dereverb; the medium jury (much stronger in
-Dutch) hears that dereverb artifacts cost words. Lesson: **the calm DSP chain
-without AI post-processing is the best on this material** — and the quality of
-the jury partly determines the outcome. Both sessions are in the viewer;
-listen for yourself and let your ears decide. You can now also record your
-verdict with rate_audio (which trains the taste model).
+## The viewer got a design pass
 
-## Built later in the night (your 3 directions)
+"Chat with Audio" branding, refined dark studio theme, round play button,
+segmented A/B/R control, score badges (before → after), type chips in the
+session list, keyboard-hints footer — and a **timeline** under the waveforms:
+a content lane (speech/music/silence) plus an interventions lane showing
+exactly where smart_edit treated what, color-coded, click to jump there.
+Verified live in the browser: A/B/R via click and keyboard, timeline seeks,
+old sessions unaffected, console clean.
 
-1. **view_audio** — a perceptual panel that I as an AI can inspect myself:
-   auditory-scale spectrograms, difference map (red = added, blue = removed),
-   level curves. Self-test done: I could point out the leveling, ducking and
-   highpass in it directly.
-2. **rate_audio + taste model** — label 'good'/'bad'; from 2+2 examples onward
-   every analysis gets a taste_score explaining which properties deviate from
-   your 'good' examples.
-3. **export_to_audition** — stems (Demucs) + .sesx multitrack session for
-   Adobe Audition 2024 (found on this Mac). A demo is ready in the session
-   folder of the overnight winner (audition/), not opened yet.
+## Repo hygiene
 
-## Where everything lives
-
-- Viewer: http://127.0.0.1:8471 ("open the viewer" in the chat)
-- Sessions: `~/AudioImprove/sessions/` — newest on top in the viewer
-- Roadmap + status: `NIGHT_ROADMAP.md`; user docs: `README.md`
-- Note: restarting Claude Desktop + a one-time approval in Claude Code are
-  still needed to see the tools there (the config is ready)
+MIT LICENSE, ruff lint (configured and fully clean), GitHub Actions CI
+(uv sync + ruff + pytest on ubuntu and macos), pyproject metadata (v0.2.0),
+README badges and updated docs.
 
 ## Honest notes
 
-- The R button (residual) has been verified via HTTP and a syntax check, but
-  not yet listened to in a real browser (the Chrome extension wasn't connected
-  during the night).
-- Stem separation on the musical file treats spoken dialogue as "vocals" —
-  that's correct Demucs behavior, but takes some getting used to.
-- Dereverb (ClearVoice) only runs on speech segments; music dereverb is
-  deliberately off (it wrecks the mix).
+- Live testing caught three real bugs, all fixed tonight: two sessions on the
+  same file within one second overwrote each other; digital-silence files made
+  the noise detector report absurd "+163 dB" excesses (reference floor now
+  clamps at -80 dB); and the boom detector double-treated hum regions (50 Hz
+  *is* low-frequency energy — now suppressed when a hum region covers it).
+- The detectors are calibrated on synthetic material and one demo file. Real
+  recordings will sharpen the thresholds — feed smart_edit your archive.
+- A demo session pair ("nachtdemo-interview") is in the viewer: one surgical,
+  one with the podcast-speech recipe, on the same file with hum, noise and
+  rumble planted at known spots.
 
-## Ideas for the next session (not built, but thought through)
+## Where everything lives
 
-1. Preference memory: "I like B better" → the tool learns your taste as a preset.
-2. Speech super-resolution (ClearVoice SR model) for old/dull recordings.
-3. Multitrack export (stems + improved mix) as a session zip for production houses.
-4. Windows test + publishing the GitHub repo if you want — the trade press, remember.
+- Viewer: http://127.0.0.1:8471 ("open the viewer" in the chat) — the
+  nachtdemo session shows the new timeline
+- Recipes: `~/AudioImprove/recipes/` + built-ins via list_recipes
+- Roadmap + status: `NIGHT_ROADMAP.md`; user docs: `README.md`
+- Still open from before: your verdict on the musical "WITHOUT rumble"
+  version (session 20260711-100317) and opening the Audition .sesx
+
+## Ideas for a next session (not built, thought through)
+
+1. smart_edit for sibilance/plosive regions (the de-esser is global-per-frame
+   now; region-level would let it act only where a mic position changed).
+2. Recipe "taste link": rate_audio labels feeding recipe suggestions —
+   "files like this usually sound right with podcast-speech".
+3. Two-pass smart_edit: fix narrowband problems (hum/clip) first, re-measure,
+   then judge broadband (noise/boom) on the intermediate — fewer overlapping
+   treatments.
+4. A screenshot in the README (the new viewer is worth showing off).
