@@ -12,8 +12,8 @@ import logging
 import numpy as np
 from scipy.signal import welch
 
-from audio_improve_toolkit import chain, dsp
-from audio_improve_toolkit.analysis import measure_lufs
+from chat_with_audio import chain, dsp
+from chat_with_audio.analysis import measure_lufs
 
 log = logging.getLogger(__name__)
 

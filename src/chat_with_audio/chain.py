@@ -11,8 +11,8 @@ import logging
 
 import numpy as np
 
-from audio_improve_toolkit import dsp
-from audio_improve_toolkit.analysis import measure_lufs
+from chat_with_audio import dsp
+from chat_with_audio.analysis import measure_lufs
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def _step_gain(x, sr, gain_db: float):
 
 
 def _step_declip(x, sr, max_gap_ms: float = 4.0):
-    from audio_improve_toolkit.dsp import repair
+    from chat_with_audio.dsp import repair
 
     y, fixed = repair.declip(x, sr, max_gap_ms=max_gap_ms)
     log.info("declip: %d regio's gereconstrueerd", fixed)
@@ -75,7 +75,7 @@ def _step_declip(x, sr, max_gap_ms: float = 4.0):
 
 
 def _step_declick(x, sr, threshold: float = 6.0):
-    from audio_improve_toolkit.dsp import repair
+    from chat_with_audio.dsp import repair
 
     y, fixed = repair.declick(x, sr, threshold=threshold)
     log.info("declick: %d klikken gerepareerd", fixed)
@@ -91,7 +91,7 @@ def _step_denoise(x, sr, strength_db: float = 12.0, method: str = "spectral"):
 def _assemble_segments(x2: np.ndarray, sr: int, process_fn, fade_ms: float = 60.0):
     """Verwerk de tijdlijn per segment (process_fn(chunk, kind) -> chunk of None
     voor 'laat origineel') en smeed alles met crossfades weer aaneen."""
-    from audio_improve_toolkit.segments import classify_segments
+    from chat_with_audio.segments import classify_segments
 
     n = x2.shape[1]
     segs = classify_segments(x2, sr)
@@ -150,7 +150,7 @@ def _step_smart_denoise(x, sr, speech_strength_db: float = 24.0,
 def _step_deess(x, sr, strength_db: float = 8.0, sensitivity: float = 2.2,
                 fade_ms: float = 60.0):
     """De-esser op de spraaksegmenten; muziek blijft onaangeroerd."""
-    from audio_improve_toolkit.dsp.deess import deess
+    from chat_with_audio.dsp.deess import deess
 
     x2 = x[None, :] if x.ndim == 1 else x
 
@@ -165,7 +165,7 @@ def _step_deess(x, sr, strength_db: float = 8.0, sensitivity: float = 2.2,
 def _step_dereverb(x, sr, fade_ms: float = 60.0):
     """Dereverberatie (ClearVoice MossFormer2) op de spraaksegmenten; muziek en
     stilte blijven onaangeroerd. Vereist het [enhance]-extra."""
-    from audio_improve_toolkit.dsp import dereverb as drv
+    from chat_with_audio.dsp import dereverb as drv
 
     if not drv.is_available():
         raise RuntimeError(drv.INSTALL_HINT)
@@ -212,7 +212,7 @@ def _step_band_duck(x, sr, low_hz: float = 60.0, high_hz: float = 170.0,
     # segmentmasker: alleen muziek dempen (spraakwarmte blijft intact)
     active = np.ones(nb, dtype=bool)
     if music_only:
-        from audio_improve_toolkit.segments import classify_segments
+        from chat_with_audio.segments import classify_segments
 
         active[:] = False
         for seg in classify_segments(x2, sr):

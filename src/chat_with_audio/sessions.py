@@ -14,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from audio_improve_toolkit import analysis, io, visuals
+from chat_with_audio import analysis, io, visuals
 
 
 def sessions_dir() -> Path:
@@ -78,7 +78,7 @@ def create_session(source_path: str | Path, x_original: np.ndarray, sr: int,
     }
     (d / "session.json").write_text(json.dumps(session, indent=2, ensure_ascii=False))
     try:
-        from audio_improve_toolkit.session_log import write_log
+        from chat_with_audio.session_log import write_log
 
         write_log(d, session, x_original, sr, metrics_original,
                   x_processed=x_processed, metrics_processed=metrics_processed,

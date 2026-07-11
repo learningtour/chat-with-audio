@@ -12,8 +12,8 @@ import logging
 
 import numpy as np
 
-from audio_improve_toolkit import asr, refine as refine_mod
-from audio_improve_toolkit.segments import classify_segments, segment_slices
+from chat_with_audio import asr, refine as refine_mod
+from chat_with_audio.segments import classify_segments, segment_slices
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 def default_variants() -> list[dict]:
     """Kandidaten; AI-ontruising is een echte wedstrijddimensie ("denoise"), en
     dereverb-varianten doen alleen mee als het [enhance]-extra er is."""
-    from audio_improve_toolkit.dsp import dereverb
+    from chat_with_audio.dsp import dereverb
 
     rustig = {"leveler": {"smooth_s": 1.6}, "compressor": {"attack_ms": 15.0}}
     presence_mild = {"eq_bands": [

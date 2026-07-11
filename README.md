@@ -69,11 +69,11 @@ de tool valt dan automatisch terug op spectral gating.
 ## Registratie bij Claude (en Codex)
 
 - **Claude Code**: staat in `.mcp.json` in de projectmap (werkt automatisch in deze map).
-- **Claude Desktop**: entry `audio-improve` in
+- **Claude Desktop**: entry `chat-with-audio` in
   `~/Library/Application Support/Claude/claude_desktop_config.json`. Herstart
-  Claude Desktop na installatie; de tools verschijnen onder "audio-improve".
+  Claude Desktop na installatie; de tools verschijnen onder "chat-with-audio".
 - **Codex CLI/app**: geregistreerd als globale MCP-server via
-  `codex mcp add audio-improve -- <uv-pad> run --directory <projectmap> audio-improve-mcp`
+  `codex mcp add chat-with-audio -- <uv-pad> run --directory <projectmap> chat-with-audio-mcp`
   (controleer met `codex mcp list`). Dezelfde 18 tools, dezelfde sessies en viewer.
 
 Let op: draai éérst `uv sync --all-extras`, anders kan de eerste serverstart
@@ -104,8 +104,8 @@ origineel, resultaat, analyses, keten + rationale, golfvormen en spectrogrammen.
 
 | Laag | Locatie | Rol |
 |---|---|---|
-| C++ DSP-kern | `cpp/` | biquad EQ (RBJ), noise gate, soft-knee compressor, look-ahead brickwall limiter; via pybind11 als `audio_improve_toolkit._dsp` |
-| DSP-dispatch | `src/audio_improve_toolkit/dsp/` | native ↔ scipy-fallback, spectral gating (`spectral_nr.py`), DeepFilterNet (`ai_nr.py`) |
+| C++ DSP-kern | `cpp/` | biquad EQ (RBJ), noise gate, soft-knee compressor, look-ahead brickwall limiter; via pybind11 als `chat_with_audio._dsp` |
+| DSP-dispatch | `src/chat_with_audio/dsp/` | native ↔ scipy-fallback, spectral gating (`spectral_nr.py`), DeepFilterNet (`ai_nr.py`) |
 | Analyse | `analysis.py` | LUFS/LRA (pyloudnorm), true peak, SNR, ruisvloer, brom, clipping, spectrum, scores + issues |
 | Beslislogica | `improve.py` | spraak/muziek-detectie, regels → keten + rationale |
 | Segmentatie | `segments.py` | spraak/muziek/stilte-tijdlijn (niveau-Otsu + spraakmodulatie) |
@@ -114,7 +114,7 @@ origineel, resultaat, analyses, keten + rationale, golfvormen en spectrogrammen.
 | Verstaanbaarheid | `asr.py` | Whisper-transcriptie + woordretentie ([asr]-extra) |
 | Dereverberatie | `dsp/dereverb.py` | ClearVoice MossFormer2 48 kHz, alleen op spraaksegmenten ([enhance]-extra) |
 | Keten | `chain.py` | stap-registry (incl. leveler, smart_denoise), loudness-normalisatie |
-| MCP-server | `server.py` | 7 tools over stdio (FastMCP) |
+| MCP-server | `server.py` | 18 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B-speler |
 
 Loudness-targets: spraak −16 LUFS / TP −1.5 dBTP, muziek −14 LUFS / TP −1.0 dBTP.
@@ -126,4 +126,4 @@ Loudness-targets: spraak −16 LUFS / TP −1.5 dBTP, muziek −14 LUFS / TP −
 - **torch/torchaudio < 2.9**: DeepFilterNet importeert `torchaudio.backend`, dat
   in torchaudio 2.9 is verwijderd.
 
-Na wijzigingen aan de C++-code: `uv sync --reinstall-package audio-improve-toolkit`.
+Na wijzigingen aan de C++-code: `uv sync --reinstall-package chat-with-audio`.

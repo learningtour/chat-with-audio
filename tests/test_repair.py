@@ -1,6 +1,6 @@
 import numpy as np
 
-from audio_improve_toolkit.dsp import repair
+from chat_with_audio.dsp import repair
 
 
 def _clean_sine(sr, dur=2.0, freq=220.0, amp=0.9):

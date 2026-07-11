@@ -67,7 +67,7 @@ def write_log(d: Path, session: dict, x_original: np.ndarray, sr: int,
               rationale: list[str] | None = None, user_request: str | None = None,
               asr_report: dict | None = None) -> Path:
     """Schrijf log.md + log.json in sessiemap d; geeft het pad van log.md terug."""
-    from audio_improve_toolkit import analysis
+    from chat_with_audio import analysis
 
     x2 = x_original[None, :] if x_original.ndim == 1 else x_original
     head, peak, peak_t = _sample_excerpt(x2, sr)
@@ -177,7 +177,7 @@ def write_log(d: Path, session: dict, x_original: np.ndarray, sr: int,
 def write_log_for_existing(session_id: str, user_request: str | None = None,
                            asr_report: dict | None = None) -> Path:
     """Bouw het logboek achteraf voor een bestaande sessie (uit de opgeslagen data)."""
-    from audio_improve_toolkit import io, sessions
+    from chat_with_audio import io, sessions
 
     d = sessions.session_path(session_id)
     data = sessions.load_session(session_id)

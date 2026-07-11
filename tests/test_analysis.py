@@ -1,6 +1,6 @@
 import numpy as np
 
-from audio_improve_toolkit import analysis
+from chat_with_audio import analysis
 
 
 def test_sine_levels(sr):

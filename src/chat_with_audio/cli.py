@@ -46,7 +46,7 @@ def main() -> None:
     args = p.parse_args()
 
     if args.cmd == "analyze":
-        from audio_improve_toolkit import analysis, io
+        from chat_with_audio import analysis, io
 
         x, sr = io.load_audio(args.file)
         m = analysis.analyze(x, sr)
@@ -63,7 +63,7 @@ def main() -> None:
                 print(f"  [{i['severity']}] {i['message']} -> {i['suggestion']}")
 
     elif args.cmd == "improve":
-        from audio_improve_toolkit import analysis, chain, improve, io, sessions
+        from chat_with_audio import analysis, chain, improve, io, sessions
 
         x, sr = io.load_audio(args.file)
         m0 = analysis.analyze(x, sr)
@@ -84,7 +84,7 @@ def main() -> None:
         print("deltas:", json.dumps(session["deltas"], ensure_ascii=False))
 
     elif args.cmd == "refine":
-        from audio_improve_toolkit import server
+        from chat_with_audio import server
 
         res = server.refine_audio(args.file, speech_peak_db=args.speech_peak,
                                   music_gap_db=args.gap, max_iterations=args.iterations,
@@ -100,7 +100,7 @@ def main() -> None:
                                          ensure_ascii=False))
 
     elif args.cmd == "optimize":
-        from audio_improve_toolkit import server
+        from chat_with_audio import server
 
         res = server.optimize_audio(args.file, speech_peak_db=args.speech_peak,
                                     music_gap_db=args.gap, denoise=args.denoise,
@@ -110,7 +110,7 @@ def main() -> None:
             print(f"  {r}")
 
     elif args.cmd == "viewer":
-        from audio_improve_toolkit.viewer.server import main as viewer_main
+        from chat_with_audio.viewer.server import main as viewer_main
 
         viewer_main(port=args.port)
 

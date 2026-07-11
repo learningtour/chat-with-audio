@@ -1,7 +1,7 @@
 import numpy as np
 import soundfile as sf
 
-from audio_improve_toolkit import server
+from chat_with_audio import server
 
 
 def test_improve_folder(tmp_path, sr):

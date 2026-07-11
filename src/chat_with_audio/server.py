@@ -1,6 +1,6 @@
 """MCP-server (stdio) voor Claude Desktop en Claude Code.
 
-Servernaam: audio-improve. Alle logging gaat naar stderr; stdout is
+Servernaam: chat-with-audio. Alle logging gaat naar stderr; stdout is
 gereserveerd voor het MCP-protocol.
 """
 
@@ -20,14 +20,14 @@ import numpy as np
 
 from mcp.server.fastmcp import FastMCP
 
-from audio_improve_toolkit import analysis, chain, improve, io, sessions
-from audio_improve_toolkit import dsp
+from chat_with_audio import analysis, chain, improve, io, sessions
+from chat_with_audio import dsp
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                     format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
-mcp = FastMCP("audio-improve")
+mcp = FastMCP("chat-with-audio")
 
 VIEWER_PORT = int(os.environ.get("AIT_VIEWER_PORT", "8471"))
 
@@ -53,7 +53,7 @@ def _ensure_viewer() -> bool:
         kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED | NEW_PROCESS_GROUP
     else:
         kwargs["start_new_session"] = True
-    subprocess.Popen([sys.executable, "-m", "audio_improve_toolkit.viewer"], **kwargs)
+    subprocess.Popen([sys.executable, "-m", "chat_with_audio.viewer"], **kwargs)
     for _ in range(25):
         time.sleep(0.2)
         if _viewer_running():
@@ -114,7 +114,7 @@ def analyze_audio(file_path: str, create_session: bool = True) -> dict:
         "ai_denoise_available": dsp.ai_denoise_available(),
         "dsp_backend": dsp.backend(),
     }
-    from audio_improve_toolkit import training
+    from chat_with_audio import training
 
     taste = training.score(m)
     result["taste"] = taste if taste else {
@@ -169,7 +169,7 @@ def reduce_noise(file_path: str, strength_db: float = 12.0, method: str = "auto"
         method = "ai" if detected == "speech" and dsp.ai_denoise_available() else "spectral"
     rationale = []
     if method == "ai" and not dsp.ai_denoise_available():
-        from audio_improve_toolkit.dsp import ai_nr
+        from chat_with_audio.dsp import ai_nr
 
         method = "spectral"
         rationale.append(f"AI-methode niet beschikbaar; spectral gating gebruikt. "
@@ -251,7 +251,7 @@ def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: flo
     het rapport bevat de meetgeschiedenis, de genomen beslissingen en een
     woordretentie-eindcheck ('report.asr') om verstaanbaarheidsverlies te zien.
     """
-    from audio_improve_toolkit import refine as refine_mod
+    from chat_with_audio import refine as refine_mod
 
     x, sr = io.load_audio(file_path)
     m0 = analysis.analyze(x, sr)
@@ -362,7 +362,7 @@ def match_reference(file_path: str, reference_path: str, strength: float = 1.0,
     de referentie. strength 0-1 regelt hoe ver richting de referentie (0.5 =
     halverwege). Ideaal om afleveringen/opnamedagen consistent te maken.
     """
-    from audio_improve_toolkit import match as match_mod
+    from chat_with_audio import match as match_mod
 
     x, sr = io.load_audio(file_path)
     ref, ref_sr = io.load_audio(reference_path)
@@ -404,7 +404,7 @@ def separate_stems(file_path: str, out_dir: str | None = None) -> dict:
     bruikbaar in een DAW. Voor herbalanceren in een keer: rebalance_music.
     Vereist het [stems]-extra (uv sync --all-extras).
     """
-    from audio_improve_toolkit.dsp import stems as stems_mod
+    from chat_with_audio.dsp import stems as stems_mod
 
     if not stems_mod.is_available():
         raise RuntimeError(stems_mod.INSTALL_HINT)
@@ -436,7 +436,7 @@ def rebalance_music(file_path: str, vocals_db: float = 0.0, drums_db: float = 0.
     mixt terug en bewaakt de pieken met een limiter. target_lufs normaliseert
     de eindmix optioneel. Resultaat staat als A/B-sessie in de viewer.
     """
-    from audio_improve_toolkit.dsp import stems as stems_mod
+    from chat_with_audio.dsp import stems as stems_mod
 
     if not stems_mod.is_available():
         raise RuntimeError(stems_mod.INSTALL_HINT)
@@ -516,7 +516,7 @@ def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: f
     Traag maar grondig; het rapport bevat de volledige ranglijst zodat je in de
     chat kunt zien waarom de winnaar won en gericht kunt bijsturen.
     """
-    from audio_improve_toolkit import optimize as optimize_mod
+    from chat_with_audio import optimize as optimize_mod
 
     x, sr = io.load_audio(file_path)
     m0 = analysis.analyze(x, sr)
@@ -559,7 +559,7 @@ def transcribe_audio(file_path: str, model_size: str = "small", language: str = 
     vergelijk. Vereist het [asr]-extra (uv sync --all-extras). model_size:
     tiny|base|small|medium (groter = beter maar trager).
     """
-    from audio_improve_toolkit import asr
+    from chat_with_audio import asr
 
     if not asr.is_available():
         raise RuntimeError(asr.INSTALL_HINT)
@@ -585,7 +585,7 @@ def view_audio(session_id: str | None = None, file_path: str | None = None):
     """
     from mcp.server.fastmcp import Image as MCPImage
 
-    from audio_improve_toolkit import visuals
+    from chat_with_audio import visuals
 
     if session_id:
         d = sessions.session_path(session_id)
@@ -613,7 +613,7 @@ def rate_audio(label: str, session_id: str | None = None, file_path: str | None 
     analyze_audio nieuwe audio automatisch tegen jouw smaak (taste_score 0-100,
     met de grootste afwijkingen als aanknopingspunt voor verbeteringen).
     """
-    from audio_improve_toolkit import training
+    from chat_with_audio import training
 
     if session_id:
         d = sessions.session_path(session_id)
@@ -645,8 +645,8 @@ def export_to_audition(session_id: str | None = None, file_path: str | None = No
     (bij een session_id). De losse wav's staan er altijd naast voor handmatig
     importeren. Vereist het [stems]-extra.
     """
-    from audio_improve_toolkit import audition
-    from audio_improve_toolkit.dsp import stems as stems_mod
+    from chat_with_audio import audition
+    from chat_with_audio.dsp import stems as stems_mod
 
     if not stems_mod.is_available():
         raise RuntimeError(stems_mod.INSTALL_HINT)
@@ -701,7 +701,7 @@ def open_viewer(session_id: str | None = None) -> dict:
 
 
 def main() -> None:
-    log.info("audio-improve MCP-server gestart (dsp backend: %s)", dsp.backend())
+    log.info("chat-with-audio MCP-server gestart (dsp backend: %s)", dsp.backend())
     mcp.run()
 
 

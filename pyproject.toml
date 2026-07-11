@@ -3,7 +3,7 @@ requires = ["scikit-build-core>=0.10", "pybind11>=3.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "audio-improve-toolkit"
+name = "chat-with-audio"
 version = "0.1.0"
 description = "Chat-gestuurde audio-verbetertool: MCP-server + C++ DSP-kern + lokale A/B-viewer"
 requires-python = ">=3.10,<3.12"
@@ -34,14 +34,14 @@ stems = [
 ]
 
 [project.scripts]
-ait = "audio_improve_toolkit.cli:main"
-audio-improve-mcp = "audio_improve_toolkit.server:main"
+ait = "chat_with_audio.cli:main"
+chat-with-audio-mcp = "chat_with_audio.server:main"
 
 [dependency-groups]
 dev = ["pytest>=8"]
 
 [tool.scikit-build]
-wheel.packages = ["src/audio_improve_toolkit"]
+wheel.packages = ["src/chat_with_audio"]
 cmake.version = ">=3.26"
 build-dir = "build/{wheel_tag}"
 

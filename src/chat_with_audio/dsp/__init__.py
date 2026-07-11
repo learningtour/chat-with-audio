@@ -9,11 +9,11 @@ from __future__ import annotations
 import numpy as np
 
 try:
-    from audio_improve_toolkit import _dsp as _impl
+    from chat_with_audio import _dsp as _impl
 
     _BACKEND = "native"
 except ImportError:  # native build ontbreekt: pure-Python fallback
-    from audio_improve_toolkit.dsp import fallback as _impl
+    from chat_with_audio.dsp import fallback as _impl
 
     _BACKEND = "fallback"
 
@@ -103,21 +103,21 @@ def limiter(x, sr: int, ceiling_db: float = -1.5, release_ms: float = 60.0,
 
 def spectral_denoise(x, sr: int, reduction_db: float = 12.0, **kwargs) -> np.ndarray:
     """Tier A ruisonderdrukking: STFT spectral gating (altijd beschikbaar)."""
-    from audio_improve_toolkit.dsp.spectral_nr import spectral_denoise as _f
+    from chat_with_audio.dsp.spectral_nr import spectral_denoise as _f
 
     x2, was_1d = _as2d(x)
     return _restore(_f(x2, sr, reduction_db=reduction_db, **kwargs), was_1d)
 
 
 def ai_denoise_available() -> bool:
-    from audio_improve_toolkit.dsp import ai_nr
+    from chat_with_audio.dsp import ai_nr
 
     return ai_nr.is_available()
 
 
 def ai_denoise(x, sr: int, strength_db: float | None = None) -> np.ndarray:
     """Tier B ruisonderdrukking: DeepFilterNet (vereist het [ai]-extra)."""
-    from audio_improve_toolkit.dsp import ai_nr
+    from chat_with_audio.dsp import ai_nr
 
     x2, was_1d = _as2d(x)
     return _restore(ai_nr.denoise(x2, sr, atten_lim_db=strength_db), was_1d)

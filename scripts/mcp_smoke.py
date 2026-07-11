@@ -30,7 +30,7 @@ async def main() -> None:
         sf.write(str(wav), (0.1 * np.sin(2 * np.pi * 440 * t)).astype(np.float32), sr)
 
         params = StdioServerParameters(
-            command=sys.executable, args=["-m", "audio_improve_toolkit.server"],
+            command=sys.executable, args=["-m", "chat_with_audio.server"],
             env={"AIT_SESSIONS_DIR": td})
         async with stdio_client(params) as (read, write):
             async with ClientSession(read, write) as session:

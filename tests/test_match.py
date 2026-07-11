@@ -1,6 +1,6 @@
 import numpy as np
 
-from audio_improve_toolkit import match
+from chat_with_audio import match
 
 
 def _pink(sr, dur=6.0, seed=1):
@@ -15,7 +15,7 @@ def _pink(sr, dur=6.0, seed=1):
 
 def test_match_reference_brings_spectrum_closer(sr):
     src = _pink(sr, seed=1)
-    from audio_improve_toolkit import dsp
+    from chat_with_audio import dsp
 
     # referentie = zelfde soort signaal, maar met een duidelijk andere klankkleur
     ref = dsp.eq(_pink(sr, seed=2), sr, [("highshelf", 4000.0, 6.0, 0.707),
@@ -36,6 +36,6 @@ def test_match_loudness(sr):
     src = _pink(sr, seed=3)
     ref = (0.02 * _pink(sr, seed=4) / 0.1).astype(np.float32)  # veel zachtere referentie
     y, info = match.match_reference(src, sr, ref, sr, match_loudness=True)
-    from audio_improve_toolkit.analysis import measure_lufs
+    from chat_with_audio.analysis import measure_lufs
 
     assert abs(measure_lufs(y, sr) - measure_lufs(ref, sr)) < 1.5

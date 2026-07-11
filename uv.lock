@@ -58,7 +58,7 @@ wheels = [
 ]
 
 [[package]]
-name = "audio-improve-toolkit"
+name = "chat-with-audio"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

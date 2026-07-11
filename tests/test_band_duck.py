@@ -1,10 +1,10 @@
 import numpy as np
 
-from audio_improve_toolkit import chain
+from chat_with_audio import chain
 
 
 def _band_rms_db(x, sr, lo=60.0, hi=170.0):
-    from audio_improve_toolkit import dsp
+    from chat_with_audio import dsp
 
     band = dsp.eq(x, sr, [("highpass", lo, 0.0, 0.707)] * 2
                          + [("lowpass", hi, 0.0, 0.707)] * 2)
@@ -29,7 +29,7 @@ def test_band_duck_tames_boom_keeps_mids(sr):
     # dreunband in de muziek flink omlaag
     assert _band_rms_db(x[:, muz], sr) - _band_rms_db(y[:, muz], sr) >= 5.0
     # 1 kHz-inhoud vrijwel onaangetast
-    from audio_improve_toolkit import dsp
+    from chat_with_audio import dsp
 
     mid_x = dsp.eq(x[:, muz], sr, [("highpass", 500, 0.0, 0.707)] * 2)
     mid_y = dsp.eq(y[:, muz], sr, [("highpass", 500, 0.0, 0.707)] * 2)

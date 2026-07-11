@@ -20,7 +20,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from audio_improve_toolkit import sessions
+from chat_with_audio import sessions
 
 log = logging.getLogger(__name__)
 

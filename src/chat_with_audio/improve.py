@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from audio_improve_toolkit import dsp
+from chat_with_audio import dsp
 
 TARGETS = {
     "speech": {"lufs": -16.0, "true_peak_db": -1.5, "hpf_hz": 80.0},
@@ -76,7 +76,7 @@ def build_improve_chain(m: dict, profile: str = "auto", target_lufs: float | Non
         if method == "auto":
             method = "ai" if profile == "speech" and dsp.ai_denoise_available() else "spectral"
         if method == "ai" and not dsp.ai_denoise_available():
-            from audio_improve_toolkit.dsp import ai_nr
+            from chat_with_audio.dsp import ai_nr
 
             method = "spectral"
             rationale.append("AI-ruisonderdrukking is niet geinstalleerd; teruggevallen op "

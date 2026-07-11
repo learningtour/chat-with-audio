@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from audio_improve_toolkit.dsp.repair import declick
+from chat_with_audio.dsp.repair import declick
 
 
 def test_burst_clicks_in_silence_removed_plosive_kept(sr):

@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from audio_improve_toolkit import analysis, training, visuals
-from audio_improve_toolkit.audition import write_sesx
+from chat_with_audio import analysis, training, visuals
+from chat_with_audio.audition import write_sesx
 
 
 @pytest.fixture(autouse=True)

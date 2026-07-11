@@ -1,7 +1,7 @@
 import numpy as np
 
-from audio_improve_toolkit import analysis, dsp
-from audio_improve_toolkit.dsp.deess import deess
+from chat_with_audio import analysis, dsp
+from chat_with_audio.dsp.deess import deess
 
 
 def _band_rms_db(x, sr, lo, hi):

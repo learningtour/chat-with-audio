@@ -12,8 +12,8 @@ import logging
 
 import numpy as np
 
-from audio_improve_toolkit import chain
-from audio_improve_toolkit.segments import classify_segments, segment_slices
+from chat_with_audio import chain
+from chat_with_audio.segments import classify_segments, segment_slices
 
 log = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ def refine(x: np.ndarray, sr: int, speech_peak_db: float = -6.0,
     tuning (voor het optimalisatie-harnas): {"eq_bands": [...], "leveler": {...},
     "compressor": {...}, "pre_extra": [steps na de highpass, bv. dereverb]}.
     """
-    from audio_improve_toolkit import asr
+    from chat_with_audio import asr
 
     x2 = x[None, :] if x.ndim == 1 else x
     segs = classify_segments(x2, sr)

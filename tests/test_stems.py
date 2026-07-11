@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from audio_improve_toolkit.dsp import stems
+from chat_with_audio.dsp import stems
 
 
 @pytest.mark.skipif(not stems.is_available(), reason="[stems]-extra niet geinstalleerd")

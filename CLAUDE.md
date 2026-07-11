@@ -3,16 +3,16 @@
 Chat-gestuurde audio-verbetertool: MCP-server (FastMCP, stdio) + C++ DSP-kern
 (pybind11) + lokale A/B-viewer. Zie README.md voor gebruikersdocumentatie.
 
-> Weergavenaam: **Chat with Audio** (GitHub: `chat-with-audio`). De interne
-> Python-package heet nog `audio_improve_toolkit` en de MCP-server `audio-improve`;
-> die technische identifiers zijn bewust niet hernoemd (ze zitten in de C++-module
-> `audio_improve_toolkit._dsp` en in de MCP-registratie bij Claude/Codex).
+> Naam overal: **Chat with Audio** (package `chat_with_audio`, MCP-server
+> `chat-with-audio`, GitHub `chat-with-audio`). Alleen de lokale projectmap heet
+> nog "Audio Improve Toolkit" — die naam zit in de MCP-registraties (pad) en is
+> lokaal, dus onzichtbaar op GitHub.
 
 ## Commando's
 
 ```bash
 uv sync --all-extras                              # build (incl. C++) + alle deps
-uv sync --reinstall-package audio-improve-toolkit # na wijziging in cpp/
+uv sync --reinstall-package chat-with-audio # na wijziging in cpp/
 uv run pytest                                     # testsuite
 uv run python scripts/mcp_smoke.py                # MCP stdio-rooktest
 uv run ait analyze <bestand>                      # dev-CLI zonder MCP
@@ -23,9 +23,9 @@ uv run ait viewer                                 # viewer op :8471
 ## Architectuurkaart
 
 - `cpp/` — header-only DSP (biquad.hpp, dynamics.hpp) + `bindings.cpp` → module
-  `audio_improve_toolkit._dsp`. Arrays zijn float32 (channels, n); functies geven
+  `chat_with_audio._dsp`. Arrays zijn float32 (channels, n); functies geven
   nieuwe arrays terug; dynamics gebruiken een linked detector over kanalen.
-- `src/audio_improve_toolkit/dsp/__init__.py` — dispatch: native `_dsp` indien
+- `src/chat_with_audio/dsp/__init__.py` — dispatch: native `_dsp` indien
   gebouwd, anders `fallback.py` (scipy; identieke signaturen, blok-gebaseerde
   dynamics). `spectral_nr.py` = Tier A denoise; `ai_nr.py` = Tier B (DeepFilterNet).
 - `analysis.py` → metrics-dict + `score_and_issues()`; `improve.py` → profiel-

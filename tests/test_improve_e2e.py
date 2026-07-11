@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from audio_improve_toolkit import analysis, chain, improve, io, sessions
+from chat_with_audio import analysis, chain, improve, io, sessions
 
 
 def test_improve_end_to_end(tmp_path, sr, noisy_wav):

@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from audio_improve_toolkit import refine
-from audio_improve_toolkit.segments import classify_segments
+from chat_with_audio import refine
+from chat_with_audio.segments import classify_segments
 
 
 def _theater(sr):

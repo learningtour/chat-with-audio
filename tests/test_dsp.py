@@ -3,10 +3,10 @@
 import numpy as np
 import pytest
 
-from audio_improve_toolkit.dsp import fallback
+from chat_with_audio.dsp import fallback
 
 try:
-    from audio_improve_toolkit import _dsp as native
+    from chat_with_audio import _dsp as native
 except ImportError:
     native = None
 
@@ -87,7 +87,7 @@ def test_native_matches_fallback_filters(sr):
 
 
 def test_spectral_denoise_lowers_noise_floor(sr, noisy_bursts):
-    from audio_improve_toolkit import dsp
+    from chat_with_audio import dsp
 
     x = noisy_bursts[None, :]
     y = dsp.spectral_denoise(x, sr, reduction_db=12)
