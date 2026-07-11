@@ -1,7 +1,8 @@
 # Chat with Audio — development notes
 
 Chat-driven audio enhancement tool: MCP server (FastMCP, stdio) + C++ DSP core
-(pybind11) + local A/B viewer. See README.md for user documentation.
+(pybind11) + local A/B viewer. See README.md and docs/ for user documentation
+(tool reference, workflows, compliance, smart regions, recipes, architecture).
 
 > Name everywhere: **Chat with Audio** (package `chat_with_audio`, MCP server
 > `chat-with-audio`, GitHub `chat-with-audio`, local project folder
@@ -45,7 +46,15 @@ uv run ait viewer                                 # viewer on :8471
   (`refine_audio` tool): AI denoising once up front, then adjust leveler/loudness
   until the speech peak and balance are right; silence segments are pushed back
   down afterwards (_duck_silence) because the leveler would otherwise lift them.
-- `server.py` — 22 MCP tools; `sessions.py` — session folders under
+- `compliance.py` → delivery-spec registry (EBU R128, ATSC A/85, Netflix
+  dialogue-gated via speech segments, streaming, ACX) + pass/fail checker;
+  `master_for` writes compliance.json into the session (viewer panel).
+- `dsp/dialogue.py` → breath_control / deplosive / duck_music (chain steps);
+  gain envelopes are smoothed with edge padding — plain convolution would
+  drag file edges toward zero.
+- `markers.py` → region map → Audition marker CSV + Audacity labels + JSON
+  (`export_markers`).
+- `server.py` — 25 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.

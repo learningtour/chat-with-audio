@@ -64,8 +64,31 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
   model; analyze_audio then scores new audio against your taste.
 - **"Set this up in Audition"** — `export_to_audition`: stems + a .sesx
   multitrack session, opened directly in Adobe Audition.
+- **"Is this broadcast-proof?"** — `check_compliance`: pass/fail report
+  against EBU R128, ATSC A/85, Netflix (dialogue-gated), Apple Podcasts,
+  Spotify, YouTube or ACX audiobook, including the technical QC gates
+  (clipping, dropouts, dead channel, anti-phase).
+- **"Master this for European broadcast, 48 kHz 24-bit"** — `master_for`:
+  masters to the spec (dialogue-gated specs steer on the detected speech),
+  re-verifies, and exports a delivery file with high-quality SRC and bit-depth
+  control. The compliance report shows up as a panel in the viewer.
+- **"Polish the dialogue"** — the film-post steps: `breath_control` (dim
+  breaths, never cut), `deplosive` (p/b-pops fixed on the pop only) and
+  `duck_music` (music beds ride down under the speech level) — bundled in the
+  built-in `dialogue-polish` recipe.
+- **"Give me the region map as markers"** — `export_markers`: what the AI
+  found lands as Audition marker CSV / Audacity labels in your DAW.
 - **"Open the viewer"** / **"What exactly changed?"** — A/B comparison; Claude
   reads the same session data the viewer shows.
+
+## Documentation
+
+Extensive docs live in [`docs/`](docs/README.md): [getting
+started](docs/getting-started.md), the full [tool reference](docs/tools.md),
+a [workflows cookbook](docs/workflows.md) (podcast, broadcast delivery, film
+dialogue, restoration, QC), [delivery compliance](docs/compliance.md),
+[smart regions](docs/smart-regions.md), [recipes](docs/recipes.md) and the
+[architecture](docs/architecture.md).
 
 ## Installation (macOS)
 
@@ -75,7 +98,7 @@ Command Line Tools. Python 3.11 is fetched by uv itself.
 ```bash
 cd chat-with-audio
 uv sync --all-extras        # builds the C++ core and installs everything (incl. AI denoise)
-uv run pytest               # 53 tests
+uv run pytest               # 78 tests
 uv run python scripts/mcp_smoke.py   # MCP smoke test
 ```
 
@@ -90,7 +113,7 @@ the tool then falls back to spectral gating automatically.
   Claude Desktop after installing; the tools appear under "chat-with-audio".
 - **Codex CLI/app**: registered as a global MCP server via
   `codex mcp add chat-with-audio -- <uv-path> run --directory <project-folder> chat-with-audio-mcp`
-  (verify with `codex mcp list`). Same 22 tools, same sessions and viewer.
+  (verify with `codex mcp list`). Same 25 tools, same sessions and viewer.
 
 Note: run `uv sync --all-extras` first, otherwise the first server start may
 time out while building/downloading.
@@ -143,12 +166,15 @@ Steps are validated before anything runs.
 | Segmentation | `segments.py` | speech/music/silence timeline (level Otsu + speech modulation) |
 | Smart regions | `regions.py` | windowed problem detectors (hum/noise/clip/boom) + per-region mini-chains with crossfades |
 | Recipes | `recipes.py` | saved chains as shareable JSON; built-in presets + `~/AudioImprove/recipes/` |
+| Compliance | `compliance.py` | delivery specs (EBU/ATSC/Netflix/streaming/ACX) + pass/fail checker |
+| Dialogue suite | `dsp/dialogue.py` | breath control, plosive repair, music-bed ducking |
+| DAW markers | `markers.py` | region map → Audition CSV / Audacity labels / JSON |
 | Refinement loop | `refine.py` | iterative measure → adjust (speech peak, balance, pause floor), Whisper-guarded |
 | Optimization | `optimize.py` | variant contest, scored on intelligibility + targets |
 | Intelligibility | `asr.py` | Whisper transcription + word retention ([asr] extra) |
 | Dereverberation | `dsp/dereverb.py` | ClearVoice MossFormer2 48 kHz, speech segments only ([enhance] extra) |
 | Chain | `chain.py` | step registry (incl. leveler, smart_denoise), loudness normalization |
-| MCP server | `server.py` | 22 tools over stdio (FastMCP) |
+| MCP server | `server.py` | 25 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B player |
 
 Loudness targets: speech −16 LUFS / TP −1.5 dBTP, music −14 LUFS / TP −1.0 dBTP.

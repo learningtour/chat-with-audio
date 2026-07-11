@@ -26,21 +26,26 @@ of professional pain:
 
 ## Status
 
-- [ ] 1. Pro metering & QC: momentary/short-term LUFS max, PLR, stereo QC
+- [x] 1. Pro metering & QC: momentary/short-term LUFS max, PLR, stereo QC
       (correlation, dual-mono, polarity, balance), dropout scan, head/tail
       silence — into metrics + issues, with tests
-- [ ] 2. Compliance suite: spec registry (EBU R128, ATSC A/85, Netflix
+- [x] 2. Compliance suite: spec registry (EBU R128, ATSC A/85, Netflix
       dialogue-gated, Spotify, Apple, YouTube, ACX audiobook),
       check_compliance (pass/fail per criterion), master_for (master to spec,
-      re-verify, delivery export)
-- [ ] 3. Dialogue suite: breath_control, deplosive and duck_music chain
+      re-verify, delivery export 48 kHz/24-bit) + viewer panel
+- [x] 3. Dialogue suite: breath_control, deplosive and duck_music chain
       steps + dialogue-polish recipe, with tests
-- [ ] 4. DAW export: export_markers (Audition CSV, Audacity labels, JSON)
+- [x] 4. DAW export: export_markers (Audition CSV, Audacity labels, JSON)
       from the region timeline; delivery I/O (SRC + bit depth)
-- [ ] 5. Extensive English docs under docs/ (tool reference, workflows
-      cookbook, compliance guide, smart regions, recipe format,
-      architecture) + README links
-- [ ] 6. Morning report, memory, everything pushed, CI green
+- [x] 5. Extensive English docs under docs/ (getting started, tool
+      reference, workflows cookbook, compliance guide, smart regions,
+      recipe format, architecture) + README links
+- [x] 6. Morning report, memory, everything pushed, CI green
+
+Bugs found by building and fixed on the spot: dropout detector vs
+gating/fades (zero-crossing boundary rule), breath floor vs digital
+silence (clamped at -75 dB), envelope smoothing dragging file edges to
+zero (edge padding).
 
 ## Rules (unchanged)
 
