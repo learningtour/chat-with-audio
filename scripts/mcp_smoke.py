@@ -22,7 +22,7 @@ EXPECTED_TOOLS = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_l
                   "improve_folder", "view_audio", "rate_audio", "export_to_audition",
                   "list_sessions", "open_viewer", "smart_edit",
                   "list_recipes", "save_recipe", "apply_recipe",
-                  "check_compliance", "master_for"}
+                  "check_compliance", "master_for", "export_markers"}
 
 
 async def main() -> None:

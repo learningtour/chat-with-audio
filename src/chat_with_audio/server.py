@@ -976,6 +976,34 @@ def export_to_audition(session_id: str | None = None, file_path: str | None = No
 
 
 @mcp.tool()
+def export_markers(session_id: str, out_dir: str | None = None,
+                   include_segments: bool = False) -> dict:
+    """Exporteer de AI-regiokaart van een sessie als DAW-markers.
+
+    Schrijft drie formaten: Adobe Audition marker-CSV (importeren via het
+    Markers-paneel), een Audacity label track (start/end/label, importeert in
+    veel tools) en markers.json. Zo landt wat de AI vond — netbrom hier, ruis
+    daar, clipping daar — als navigeerbare markers in je editor.
+    include_segments neemt ook de spraak/muziek/stilte-segmenten mee.
+    Regiokaarten ontstaan bij smart_edit; andere sessies hebben alleen
+    segmenten.
+    """
+    from chat_with_audio import markers as markers_mod
+
+    data = sessions.load_session(session_id)
+    timeline = data.get("timeline")
+    if not timeline:
+        raise ValueError(f"Sessie {session_id} heeft geen tijdlijndata "
+                         "(oudere sessie?). Draai de bewerking opnieuw.")
+    d = Path(out_dir).expanduser() if out_dir else (
+        sessions.session_path(session_id) / "markers")
+    result = markers_mod.write_markers(timeline, d, include_segments=include_segments)
+    result["hint"] = ("Audition: Markers-paneel > import; Audacity: "
+                      "File > Import > Labels.")
+    return result
+
+
+@mcp.tool()
 def open_viewer(session_id: str | None = None) -> dict:
     """Open de lokale A/B-viewer in de browser (start hem zo nodig).
 

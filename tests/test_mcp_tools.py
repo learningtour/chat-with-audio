@@ -10,7 +10,7 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "improve_folder", "view_audio", "rate_audio", "export_to_audition",
             "list_sessions", "open_viewer", "smart_edit",
             "list_recipes", "save_recipe", "apply_recipe",
-            "check_compliance", "master_for"}
+            "check_compliance", "master_for", "export_markers"}
 
 
 def test_tool_registry():
@@ -96,6 +96,44 @@ def test_save_recipe_refuses_region_sessions(tmp_path, sr):
 
     with pytest.raises(ValueError, match="chirurgische"):
         server.save_recipe("mag-niet", session_id=res["session_id"])
+
+
+def test_export_markers_from_smart_edit_session(tmp_path, sr):
+    import numpy as np
+    import soundfile as sf
+
+    t = np.arange(sr * 12) / sr
+    base = (0.1 * np.sin(2 * np.pi * 300 * t)
+            * (np.sin(2 * np.pi * 5.0 * t) > 0)
+            * (np.sin(2 * np.pi * 0.25 * t) > -0.6))
+    hum = 0.02 * np.sin(2 * np.pi * 50 * t) * ((t >= 4) & (t < 8))
+    p = tmp_path / "hum.wav"
+    sf.write(str(p), (base + hum).astype(np.float32), sr)
+    res = server.smart_edit(str(p))
+    assert res["regions"]
+
+    out = server.export_markers(res["session_id"])
+    assert out["count"] >= 1
+    from pathlib import Path
+
+    csv_lines = Path(out["audition_csv"]).read_text().strip().splitlines()
+    assert csv_lines[0].startswith("Name\tStart\tDuration")
+    assert len(csv_lines) == out["count"] + 1
+    labels = Path(out["audacity_labels"]).read_text().strip().splitlines()
+    start, end, name = labels[0].split("\t")
+    assert float(end) > float(start)
+    assert name
+
+    both = server.export_markers(res["session_id"], include_segments=True)
+    assert both["count"] > out["count"]
+
+
+def test_export_markers_needs_regions(noisy_wav):
+    import pytest
+
+    res = server.analyze_audio(str(noisy_wav), create_session=True)
+    with pytest.raises(ValueError, match="regio's|tijdlijndata"):
+        server.export_markers(res["session_id"])
 
 
 def test_smart_edit_clean_file_does_nothing(tmp_path, sr):
