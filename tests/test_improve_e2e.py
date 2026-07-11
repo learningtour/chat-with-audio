@@ -29,8 +29,14 @@ def test_improve_end_to_end(tmp_path, sr, noisy_wav):
     for name in ("original.wav", "processed.wav", "analysis_original.json",
                  "analysis_processed.json", "chain.json", "session.json",
                  "waveform_original.json", "waveform_processed.json",
-                 "spectrogram_original.png", "spectrogram_processed.png"):
+                 "spectrogram_original.png", "spectrogram_processed.png",
+                 "log.md", "log.json"):
         assert (d / name).exists(), f"{name} ontbreekt in de sessiemap"
+    log = (d / "log.md").read_text()
+    for kop in ("## 1. Wat kwam er binnen", "### Audio als data",
+                "## 3. Hoe er geanalyseerd is", "## 5. Interventies",
+                "## 7. Verificatie"):
+        assert kop in log, f"logboek mist sectie: {kop}"
 
     loaded = sessions.load_session(session["session_id"])
     assert loaded["deltas"]["lufs_integrated"] > 10

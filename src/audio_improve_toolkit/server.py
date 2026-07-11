@@ -62,14 +62,15 @@ def _ensure_viewer() -> bool:
 
 
 def _process(file_path: str, steps: list[dict], rationale: list[str],
-             profile: str | None = None, out_path: str | None = None) -> dict:
+             profile: str | None = None, out_path: str | None = None,
+             user_request: str | None = None) -> dict:
     """Gedeelde route: laden -> keten -> analyse voor/na -> sessie -> resultaat."""
     x, sr = io.load_audio(file_path)
     m0 = analysis.analyze(x, sr)
     y, resolved = chain.run_chain(x, sr, steps)
     m1 = analysis.analyze(y, sr)
     session = sessions.create_session(file_path, x, sr, m0, y, m1, resolved,
-                                      rationale, profile)
+                                      rationale, profile, user_request=user_request)
     scores_after, issues_after = analysis.score_and_issues(m1)
 
     result = {
@@ -128,7 +129,8 @@ def analyze_audio(file_path: str, create_session: bool = True) -> dict:
 
 @mcp.tool()
 def improve_audio(file_path: str, profile: str = "auto", target_lufs: float | None = None,
-                  denoise_method: str = "auto", out_path: str | None = None) -> dict:
+                  denoise_method: str = "auto", out_path: str | None = None,
+                  user_request: str = "") -> dict:
     """Verbeter audio automatisch ("maak dit geluid beter").
 
     Analyseert het bestand en kiest zelf een keten (highpass, brom-notches,
@@ -137,17 +139,21 @@ def improve_audio(file_path: str, profile: str = "auto", target_lufs: float | No
     denoise_method: auto|spectral|ai (ai = DeepFilterNet, best voor spraak).
     out_path: optioneel exportpad; het formaat volgt de extensie (.mp3, .m4a,
     .flac, .ogg, .wav). Het resultaat staat altijd ook als wav in de sessie.
+    Geef in user_request de letterlijke vraag van de gebruiker door: die wordt
+    opgenomen in het sessielogboek (log.md) voor volledige herleidbaarheid.
     """
     x, sr = io.load_audio(file_path)
     m0 = analysis.analyze(x, sr)
     used_profile, steps, rationale = improve.build_improve_chain(
         m0, profile=profile, target_lufs=target_lufs, denoise_method=denoise_method)
-    return _process(file_path, steps, rationale, profile=used_profile, out_path=out_path)
+    return _process(file_path, steps, rationale, profile=used_profile, out_path=out_path,
+                    user_request=user_request or None)
 
 
 @mcp.tool()
 def reduce_noise(file_path: str, strength_db: float = 12.0, method: str = "auto",
-                 use_gate: bool = True, out_path: str | None = None) -> dict:
+                 use_gate: bool = True, out_path: str | None = None,
+                 user_request: str = "") -> dict:
     """Verminder alleen de ruis; loudness blijft verder ongemoeid.
 
     method: auto|spectral|ai. 'ai' gebruikt DeepFilterNet (state-of-the-art voor
@@ -175,12 +181,14 @@ def reduce_noise(file_path: str, strength_db: float = 12.0, method: str = "auto"
         thr = min(m0["noise_floor_db"] + 6, -30)
         steps.append({"type": "gate", "threshold_db": round(thr, 1), "range_db": 10.0})
         rationale.append(f"Zachte noise gate op {thr:.0f} dB maakt de pauzes stil.")
-    return _process(file_path, steps, rationale, profile=detected, out_path=out_path)
+    return _process(file_path, steps, rationale, profile=detected, out_path=out_path,
+                    user_request=user_request or None)
 
 
 @mcp.tool()
 def normalize_loudness(file_path: str, target_lufs: float = -16.0,
-                       true_peak_db: float = -1.5, out_path: str | None = None) -> dict:
+                       true_peak_db: float = -1.5, out_path: str | None = None,
+                       user_request: str = "") -> dict:
     """Trek het niveau over de hele breedte op (of omlaag) zonder te clippen.
 
     Meet de loudness (BS.1770) en brengt die naar target_lufs; een look-ahead
@@ -191,11 +199,13 @@ def normalize_loudness(file_path: str, target_lufs: float = -16.0,
               "true_peak_db": true_peak_db}]
     rationale = [f"Loudness genormaliseerd naar {target_lufs} LUFS met "
                  f"true-peak-limiter op {true_peak_db} dBTP."]
-    return _process(file_path, steps, rationale, out_path=out_path)
+    return _process(file_path, steps, rationale, out_path=out_path,
+                    user_request=user_request or None)
 
 
 @mcp.tool()
-def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None) -> dict:
+def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None,
+                user_request: str = "") -> dict:
     """Pas een expliciete bewerkingsketen toe (voor fijnsturing in de chat).
 
     steps is een lijst van stap-objecten, uitgevoerd in volgorde. Beschikbaar:
@@ -222,13 +232,15 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None) 
     niveau verhogen.
     """
     rationale = [f"Handmatige keten met {len(steps)} stap(pen), samengesteld in de chat."]
-    return _process(file_path, steps, rationale, out_path=out_path)
+    return _process(file_path, steps, rationale, out_path=out_path,
+                    user_request=user_request or None)
 
 
 @mcp.tool()
 def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
                  max_iterations: int = 5, denoise: str = "auto", tone: bool = True,
-                 asr_check: bool = True, out_path: str | None = None) -> dict:
+                 asr_check: bool = True, out_path: str | None = None,
+                 user_request: str = "") -> dict:
     """Iteratieve verfijning tot spraakniveau en spraak/muziek-balans exact kloppen.
 
     Segmenteert het bestand (spraak/muziek/stilte) en draait een meet-en-bijstuur-
@@ -259,7 +271,9 @@ def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: flo
                          f"{e['speech_peak']:+.1f} dB, balans-afwijking {e['balance_gap']:+.1f} dB.")
     session = sessions.create_session(file_path, x, sr, m0, y, m1, info["steps"],
                                       rationale, "speech",
-                                      label=f"{Path(file_path).name} — verfijnd")
+                                      label=f"{Path(file_path).name} — verfijnd",
+                                      user_request=user_request or None,
+                                      asr_report=rep.get("asr"))
     result = {
         "session_id": session["session_id"],
         "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
@@ -468,7 +482,7 @@ def rebalance_music(file_path: str, vocals_db: float = 0.0, drums_db: float = 0.
 
 @mcp.tool()
 def repair_audio(file_path: str, declip: bool = True, declick: bool = True,
-                 out_path: str | None = None) -> dict:
+                 out_path: str | None = None, user_request: str = "") -> dict:
     """Repareer beschadigde audio: declip (reconstrueert afgekapte golftoppen via
     spline-interpolatie) en declick (verwijdert korte impulsen/klikken).
 
@@ -486,7 +500,8 @@ def repair_audio(file_path: str, declip: bool = True, declick: bool = True,
         rationale.append("Declick: impulsartefacten gerepareerd.")
     if not steps:
         raise ValueError("Niets te doen: declip en declick staan beide uit.")
-    return _process(file_path, steps, rationale, out_path=out_path)
+    return _process(file_path, steps, rationale, out_path=out_path,
+                    user_request=user_request or None)
 
 
 @mcp.tool()

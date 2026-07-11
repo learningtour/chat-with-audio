@@ -169,6 +169,9 @@ function renderChain() {
   $("rationale").innerHTML = rat.map((r) => `<li>${r}</li>`).join("") ||
     "<li>Alleen analyse — nog geen bewerking.</li>";
   $("chain").textContent = JSON.stringify(current.chain?.steps || [], null, 2);
+  const log = $("log-link");
+  log.hidden = !current.has_log;
+  if (current.has_log) log.href = `/files/${current.session_id}/log.md`;
 }
 
 function setSpec(which) {

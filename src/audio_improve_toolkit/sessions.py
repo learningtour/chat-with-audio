@@ -33,7 +33,8 @@ def create_session(source_path: str | Path, x_original: np.ndarray, sr: int,
                    metrics_original: dict, x_processed: np.ndarray | None = None,
                    metrics_processed: dict | None = None, chain: list | None = None,
                    rationale: list[str] | None = None, profile: str | None = None,
-                   label: str | None = None) -> dict:
+                   label: str | None = None, user_request: str | None = None,
+                   asr_report: dict | None = None) -> dict:
     """Schrijf een complete sessiemap; geeft session.json-inhoud terug."""
     session_id = time.strftime("%Y%m%d-%H%M%S") + "-" + _slug(str(source_path))
     d = sessions_dir() / session_id
@@ -76,6 +77,17 @@ def create_session(source_path: str | Path, x_original: np.ndarray, sr: int,
         "deltas": deltas,
     }
     (d / "session.json").write_text(json.dumps(session, indent=2, ensure_ascii=False))
+    try:
+        from audio_improve_toolkit.session_log import write_log
+
+        write_log(d, session, x_original, sr, metrics_original,
+                  x_processed=x_processed, metrics_processed=metrics_processed,
+                  chain=chain, rationale=rationale, user_request=user_request,
+                  asr_report=asr_report)
+    except Exception:  # het logboek mag een sessie nooit laten falen
+        import logging
+
+        logging.getLogger(__name__).exception("logboek schrijven mislukt")
     return session
 
 

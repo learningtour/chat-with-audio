@@ -29,6 +29,7 @@ ALLOWED_SESSION_FILES = {
     "original.wav": "audio/wav",
     "processed.wav": "audio/wav",
     "residual.wav": "audio/wav",
+    "log.md": "text/plain; charset=utf-8",
     "spectrogram_original.png": "image/png",
     "spectrogram_processed.png": "image/png",
 }
@@ -83,6 +84,7 @@ class Handler(BaseHTTPRequestHandler):
                 f = sessions.session_path(sid) / f"{name}.json"
                 if f.exists():
                     data[name] = json.loads(f.read_text())
+            data["has_log"] = (sessions.session_path(sid) / "log.md").is_file()
             self._json(data)
         elif path.startswith("/static/"):
             self._static(path[len("/static/"):])
