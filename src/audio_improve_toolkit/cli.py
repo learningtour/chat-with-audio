@@ -11,7 +11,7 @@ import sys
 def main() -> None:
     logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                         format="%(levelname)s %(name)s: %(message)s")
-    p = argparse.ArgumentParser(prog="ait", description="Audio Improve Toolkit dev-CLI")
+    p = argparse.ArgumentParser(prog="ait", description="Chat with Audio dev-CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pa = sub.add_parser("analyze", help="analyseer een audiobestand")

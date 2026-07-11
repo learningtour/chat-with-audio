@@ -36,7 +36,7 @@ Buffer make_buffer(const Arr& x) {
 }  // namespace
 
 PYBIND11_MODULE(_dsp, m) {
-    m.doc() = "Audio Improve Toolkit native DSP core";
+    m.doc() = "Chat with Audio native DSP core";
 
     m.def("backend_info", [] { return std::string("native"); });
 

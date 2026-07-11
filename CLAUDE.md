@@ -1,7 +1,12 @@
-# Audio Improve Toolkit — ontwikkelnotities
+# Chat with Audio — ontwikkelnotities
 
 Chat-gestuurde audio-verbetertool: MCP-server (FastMCP, stdio) + C++ DSP-kern
 (pybind11) + lokale A/B-viewer. Zie README.md voor gebruikersdocumentatie.
+
+> Weergavenaam: **Chat with Audio** (GitHub: `chat-with-audio`). De interne
+> Python-package heet nog `audio_improve_toolkit` en de MCP-server `audio-improve`;
+> die technische identifiers zijn bewust niet hernoemd (ze zitten in de C++-module
+> `audio_improve_toolkit._dsp` en in de MCP-registratie bij Claude/Codex).
 
 ## Commando's
 
@@ -31,7 +36,7 @@ uv run ait viewer                                 # viewer op :8471
   tool): AI-ontruising eenmalig vooraf, dan leveler/loudness bijsturen tot
   spraakpiek en balans kloppen; stiltesegmenten worden na afloop teruggedrukt
   (_duck_silence) omdat de leveler ze anders meetilt.
-- `server.py` — 7 MCP-tools; `sessions.py` — sessiemappen onder
+- `server.py` — 18 MCP-tools; `sessions.py` — sessiemappen onder
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isoleren dit automatisch).
 - `viewer/server.py` — stdlib http.server op 127.0.0.1:8471 (env `AIT_VIEWER_PORT`);
   `viewer/static/app.js` — A/B-speler: beide buffers spelen altijd samen,

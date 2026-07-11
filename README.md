@@ -57,9 +57,9 @@ Vereist: [uv](https://docs.astral.sh/uv/), ffmpeg (`brew install ffmpeg`), Xcode
 Command Line Tools. Python 3.11 wordt door uv zelf opgehaald.
 
 ```bash
-cd "Audio Improve Toolkit"
+cd chat-with-audio
 uv sync --all-extras        # bouwt de C++-kern en installeert alles (incl. AI-denoise)
-uv run pytest               # 21 tests
+uv run pytest               # 38 tests
 uv run python scripts/mcp_smoke.py   # MCP-rooktest
 ```
 
