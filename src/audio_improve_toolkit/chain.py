@@ -243,6 +243,39 @@ def _step_band_duck(x, sr, low_hz: float = 60.0, high_hz: float = 170.0,
     return (x2 - band * (1.0 - g)[None, :]).astype(np.float32)
 
 
+def _step_pause_duck(x, sr, duck_db: float = 20.0, speech_floor_db: float = -32.0,
+                     pad_ms: float = 100.0, fade_ms: float = 60.0):
+    """Uitzend-stilte: alles buiten de spraak omlaag, zonder gate-artefacten.
+
+    Framegebaseerde spraakdetectie (25 ms) met beschermmarge (pad_ms) aan
+    weerszijden, daarna zachte fades — woordaanzetten en slotmedeklinkers
+    blijven staan waar een klassieke gate ze zou afknabbelen.
+    """
+    from scipy.ndimage import binary_dilation as _dil
+
+    x2 = x[None, :] if x.ndim == 1 else x
+    n = x2.shape[1]
+    mono = x2.mean(axis=0).astype(np.float64)
+    flen = max(1, int(sr * 0.025))
+    nf = max(1, n // flen)
+    fr = 10 * np.log10((mono[: nf * flen].reshape(nf, flen) ** 2).mean(axis=1) + 1e-20)
+    speech = fr > speech_floor_db
+    if not speech.any():
+        return x2.astype(np.float32)
+    pad_frames = max(1, int(pad_ms / 25.0))
+    speech = _dil(speech, iterations=pad_frames)
+
+    g = 10.0 ** (-abs(duck_db) / 20.0)
+    env_f = np.where(speech, 1.0, g)
+    centers = np.arange(nf) * flen + flen / 2.0
+    env = np.interp(np.arange(n), centers, env_f).astype(np.float32)
+    # extra gladstrijken zodat de overgang nooit hoorbaar hakt
+    from scipy.ndimage import uniform_filter1d
+
+    env = uniform_filter1d(env, size=max(3, int(fade_ms / 1000 * sr)), mode="nearest")
+    return (x2 * env[None, :]).astype(np.float32)
+
+
 def _step_gate(x, sr, threshold_db: float, attack_ms: float = 5.0,
                release_ms: float = 120.0, hold_ms: float = 50.0, range_db: float = 12.0):
     return dsp.noise_gate(x, sr, threshold_db, attack_ms, release_ms, hold_ms, range_db)
@@ -313,6 +346,7 @@ STEP_REGISTRY = {
     "denoise": _step_denoise,
     "smart_denoise": _step_smart_denoise,
     "band_duck": _step_band_duck,
+    "pause_duck": _step_pause_duck,
     "deess": _step_deess,
     "dereverb": _step_dereverb,
     "gate": _step_gate,
