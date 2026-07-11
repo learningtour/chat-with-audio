@@ -58,7 +58,7 @@ def build_match_eq(x: np.ndarray, sr: int, ref: np.ndarray, ref_sr: int,
         smooth[i] = diff[lo:hi].mean()
 
     bands = []
-    for fc, g in zip(_CENTERS, smooth):
+    for fc, g in zip(_CENTERS, smooth, strict=True):
         if abs(g) >= 0.75 and fc < sr / 2 / 1.2:
             bands.append({"type": "peaking", "freq": float(fc),
                           "gain_db": round(float(g), 1), "q": 4.32})

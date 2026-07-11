@@ -12,7 +12,8 @@ import logging
 
 import numpy as np
 
-from chat_with_audio import asr, refine as refine_mod
+from chat_with_audio import asr
+from chat_with_audio import refine as refine_mod
 from chat_with_audio.segments import classify_segments, segment_slices
 
 log = logging.getLogger(__name__)

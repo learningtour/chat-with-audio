@@ -216,7 +216,8 @@ def score_and_issues(m: dict, target_lufs: float = -15.0) -> tuple[dict, list[di
         loudness = _clamp_score(100 - max(dist - 1.5, 0) * 8)
         if lufs < target_lufs - 4:
             issues.append({"severity": "medium", "code": "low_loudness",
-                           "message": f"Loudness is laag ({lufs} LUFS, streefwaarde rond {target_lufs}).",
+                           "message": f"Loudness is laag ({lufs} LUFS, streefwaarde "
+                                      f"rond {target_lufs}).",
                            "suggestion": "normalize_loudness of improve_audio"})
         elif lufs > target_lufs + 3:
             issues.append({"severity": "low", "code": "high_loudness",
@@ -228,7 +229,8 @@ def score_and_issues(m: dict, target_lufs: float = -15.0) -> tuple[dict, list[di
     if snr < 25:
         sev = "high" if snr < 15 else "medium"
         issues.append({"severity": sev, "code": "noisy",
-                       "message": f"Veel achtergrondruis (SNR {snr} dB, ruisvloer {m.get('noise_floor_db')} dB).",
+                       "message": f"Veel achtergrondruis (SNR {snr} dB, ruisvloer "
+                                  f"{m.get('noise_floor_db')} dB).",
                        "suggestion": "reduce_noise"})
     if m.get("hum", {}).get("detected"):
         issues.append({"severity": "medium", "code": "hum",
@@ -243,12 +245,15 @@ def score_and_issues(m: dict, target_lufs: float = -15.0) -> tuple[dict, list[di
     if crest < 6:
         dynamics = _clamp_score(crest / 6 * 60)
         issues.append({"severity": "medium", "code": "over_compressed",
-                       "message": f"Erg platte dynamiek (crest {crest} dB) — mogelijk overgecomprimeerd.",
-                       "suggestion": "bron met meer dynamiek gebruiken; verdere compressie vermijden"})
+                       "message": f"Erg platte dynamiek (crest {crest} dB) — mogelijk "
+                                  "overgecomprimeerd.",
+                       "suggestion": "bron met meer dynamiek gebruiken; verdere "
+                                     "compressie vermijden"})
     elif crest > 22 or (lra is not None and lra > 15):
         dynamics = 65
         issues.append({"severity": "low", "code": "very_dynamic",
-                       "message": f"Grote dynamiek (crest {crest} dB, LRA {lra} dB) — stille delen kunnen wegvallen.",
+                       "message": f"Grote dynamiek (crest {crest} dB, LRA {lra} dB) — "
+                                  "stille delen kunnen wegvallen.",
                        "suggestion": "improve_audio (past lichte compressie toe)"})
 
     clarity = 100
@@ -272,7 +277,8 @@ def score_and_issues(m: dict, target_lufs: float = -15.0) -> tuple[dict, list[di
     if m.get("clip_events", 0) > 0:
         clarity -= 35
         issues.append({"severity": "high", "code": "clipping",
-                       "message": f"{m['clip_events']} clip-momenten ({m['clipped_samples']} samples) — "
+                       "message": f"{m['clip_events']} clip-momenten "
+                                  f"({m['clipped_samples']} samples) — "
                                   "vervorming in de opname.",
                        "suggestion": "kan niet volledig hersteld worden; voortaan lager opnemen"})
     if m.get("dc_offset", 0) > 0.005:

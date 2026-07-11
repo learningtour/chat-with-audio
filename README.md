@@ -1,5 +1,9 @@
 # Chat with Audio
 
+[![CI](https://github.com/learningtour/chat-with-audio/actions/workflows/ci.yml/badge.svg)](https://github.com/learningtour/chat-with-audio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
+
 _Part of **Agentic Production**._
 
 Chat-driven audio enhancement: talk to your local Claude (Desktop or Claude Code)

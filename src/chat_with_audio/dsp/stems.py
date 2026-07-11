@@ -74,7 +74,7 @@ def separate(x: np.ndarray, sr: int) -> dict[str, np.ndarray]:
     sources = sources * std + mean
 
     out: dict[str, np.ndarray] = {}
-    for name, t in zip(model.sources, sources):
+    for name, t in zip(model.sources, sources, strict=True):
         y = t.cpu().numpy().astype(np.float32)
         if mono:
             y = y.mean(axis=0, keepdims=True)

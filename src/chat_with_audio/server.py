@@ -17,11 +17,9 @@ import webbrowser
 from pathlib import Path
 
 import numpy as np
-
 from mcp.server.fastmcp import FastMCP
 
-from chat_with_audio import analysis, chain, improve, io, sessions
-from chat_with_audio import dsp
+from chat_with_audio import analysis, chain, dsp, improve, io, sessions
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr,
                     format="%(levelname)s %(name)s: %(message)s")
@@ -268,7 +266,8 @@ def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: flo
     for it in rep["iterations"]:
         e = it["errors"]
         rationale.append(f"Iteratie {it['iteration']}: spraakpiek-afwijking "
-                         f"{e['speech_peak']:+.1f} dB, balans-afwijking {e['balance_gap']:+.1f} dB.")
+                         f"{e['speech_peak']:+.1f} dB, balans-afwijking "
+                         f"{e['balance_gap']:+.1f} dB.")
     session = sessions.create_session(file_path, x, sr, m0, y, m1, info["steps"],
                                       rationale, "speech",
                                       label=f"{Path(file_path).name} — verfijnd",

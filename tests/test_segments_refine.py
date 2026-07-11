@@ -24,7 +24,7 @@ def test_classify_segments_speech_music_silence(sr):
     segs = classify_segments(x, sr)
     assert segs[0]["start_s"] == 0.0
     assert abs(segs[-1]["end_s"] - 10.0) < 0.1
-    for a, b in zip(segs, segs[1:]):
+    for a, b in zip(segs, segs[1:], strict=False):
         assert abs(a["end_s"] - b["start_s"]) < 1e-6  # volledige dekking
     kinds = [s["kind"] for s in segs]
     assert kinds[0] == "speech"

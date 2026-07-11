@@ -4,8 +4,19 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "chat-with-audio"
-version = "0.1.0"
-description = "Chat-gestuurde audio-verbetertool: MCP-server + C++ DSP-kern + lokale A/B-viewer"
+version = "0.2.0"
+description = "Chat-driven audio enhancement: MCP server + C++ DSP core + local A/B viewer"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "Serge de Beer"}]
+keywords = ["audio", "dsp", "mcp", "speech-enhancement", "claude"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: C++",
+    "Topic :: Multimedia :: Sound/Audio :: Editors",
+]
 requires-python = ">=3.10,<3.12"
 dependencies = [
     "numpy>=1.24,<2.0",
@@ -33,12 +44,16 @@ stems = [
     "demucs>=4.0.1",
 ]
 
+[project.urls]
+Repository = "https://github.com/learningtour/chat-with-audio"
+Issues = "https://github.com/learningtour/chat-with-audio/issues"
+
 [project.scripts]
 ait = "chat_with_audio.cli:main"
 chat-with-audio-mcp = "chat_with_audio.server:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.8"]
 
 [tool.scikit-build]
 wheel.packages = ["src/chat_with_audio"]
@@ -47,3 +62,21 @@ build-dir = "build/{wheel_tag}"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E741",  # ambiguous single-letter names: dsp code uses f, p, q conventionally
+]
+
+[tool.ruff.lint.per-file-ignores]
+# .sesx XML templates are inherently long lines
+"src/chat_with_audio/audition.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["chat_with_audio"]

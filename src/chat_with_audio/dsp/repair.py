@@ -47,7 +47,7 @@ def declip(x: np.ndarray, sr: int, max_gap_ms: float = 4.0) -> tuple[np.ndarray,
             continue
         edges = np.diff(np.concatenate([[0], mask.astype(np.int8), [0]]))
         starts, ends = np.where(edges == 1)[0], np.where(edges == -1)[0]
-        for a, b in zip(starts, ends):
+        for a, b in zip(starts, ends, strict=True):
             if b - a > max_gap:
                 continue  # te groot om geloofwaardig te reconstrueren
             ctx = max(8, (b - a) * 3)
@@ -87,7 +87,7 @@ def _repair_runs(ch: np.ndarray, mask: np.ndarray, max_len: int) -> int:
     count = 0
     edges = np.diff(np.concatenate([[0], mask.astype(np.int8), [0]]))
     starts, ends = np.where(edges == 1)[0], np.where(edges == -1)[0]
-    for a, b in zip(starts, ends):
+    for a, b in zip(starts, ends, strict=True):
         if b - a > max_len:
             continue  # te lang: waarschijnlijk echte content
         ctx = max(16, (b - a) // 2)

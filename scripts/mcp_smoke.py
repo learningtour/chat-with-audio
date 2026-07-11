@@ -17,9 +17,10 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 EXPECTED_TOOLS = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudness",
-                  "apply_chain", "repair_audio", "match_reference", "refine_audio", "optimize_audio",
-                  "transcribe_audio", "separate_stems", "rebalance_music",
-                  "improve_folder", "view_audio", "rate_audio", "export_to_audition", "list_sessions", "open_viewer"}
+                  "apply_chain", "repair_audio", "match_reference", "refine_audio",
+                  "optimize_audio", "transcribe_audio", "separate_stems", "rebalance_music",
+                  "improve_folder", "view_audio", "rate_audio", "export_to_audition",
+                  "list_sessions", "open_viewer"}
 
 
 async def main() -> None:

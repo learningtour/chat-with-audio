@@ -50,7 +50,9 @@ def test_leveler_balances_levels(sr):
     y, _ = chain.run_chain(x, sr, [{"type": "leveler", "target_db": -18,
                                     "max_boost_db": 20, "max_cut_db": 18,
                                     "floor_db": -50}])
-    rms = lambda s: 10 * np.log10(np.mean(np.asarray(s, dtype=np.float64) ** 2) + 1e-20)
+    def rms(s):
+        return 10 * np.log10(np.mean(np.asarray(s, dtype=np.float64) ** 2) + 1e-20)
+
     gap_in = rms(x[:, 5 * sr:7 * sr]) - rms(x[:, sr:3 * sr])
     gap_out = rms(y[:, 5 * sr:7 * sr]) - rms(y[:, sr:3 * sr])
     assert gap_in > 25
