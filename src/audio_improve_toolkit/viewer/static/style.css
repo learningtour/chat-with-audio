@@ -20,6 +20,8 @@ body { background: var(--bg); color: var(--text);
 .panel { background: var(--panel); border: 1px solid var(--border);
   border-radius: 12px; padding: 16px; margin-bottom: 16px; }
 h2 { font-size: 18px; } h3 { font-size: 14px; margin-bottom: 10px; }
+h4 { font-size: 13px; margin: 6px 0 8px; color: var(--muted); font-weight: 600; }
+#agenttrainer-panel > h3 { color: var(--accent); letter-spacing: .3px; }
 #detail-header { display: flex; justify-content: space-between; align-items: center;
   flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
 #transport { display: flex; align-items: center; gap: 12px; }
