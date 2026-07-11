@@ -177,6 +177,72 @@ def _step_dereverb(x, sr, fade_ms: float = 60.0):
     return _assemble_segments(x2, sr, process, fade_ms)
 
 
+def _step_band_duck(x, sr, low_hz: float = 60.0, high_hz: float = 170.0,
+                    headroom_db: float = 10.0, threshold_db: float | None = None,
+                    max_cut_db: float = 12.0, attack_ms: float = 8.0,
+                    release_ms: float = 120.0, music_only: bool = True):
+    """Dynamische banddemping (dreun-bestrijding) via parallelle bandaftrek.
+
+    Dempt de band low_hz-high_hz wanneer hij de mix domineert: alles waar de
+    band boven (totaalniveau - headroom_db) uitkomt wordt weggeregeld (tot
+    max_cut_db). threshold_db zet in plaats daarvan een absolute banddrempel.
+    Met music_only blijft spraak volledig onaangetast."""
+    x2 = x[None, :] if x.ndim == 1 else x
+    n = x2.shape[1]
+    # Zero-fase bandextractie via FFT-masker: bij parallelle aftrek zou de
+    # fasedraaiing van IIR-filters de demping grotendeels opheffen.
+    spec = np.fft.rfft(x2, axis=1)
+    freqs = np.fft.rfftfreq(n, d=1.0 / sr)
+    ramp = 12.0  # Hz overgangszone
+    mask = np.clip((freqs - (low_hz - ramp)) / ramp, 0.0, 1.0) \
+        * np.clip(((high_hz + ramp) - freqs) / ramp, 0.0, 1.0)
+    band = np.fft.irfft(spec * mask[None, :], n=n, axis=1).astype(np.float32)
+
+    block = max(1, int(sr * 0.001))
+    nb = (n + block - 1) // block
+
+    def _env_db(sig):
+        det = np.abs(sig).max(axis=0)
+        padded = np.zeros(nb * block, dtype=det.dtype)
+        padded[:det.shape[0]] = det
+        return 20 * np.log10(padded.reshape(nb, block).max(axis=1) + 1e-10)
+
+    env_db = _env_db(band)
+
+    # segmentmasker: alleen muziek dempen (spraakwarmte blijft intact)
+    active = np.ones(nb, dtype=bool)
+    if music_only:
+        from audio_improve_toolkit.segments import classify_segments
+
+        active[:] = False
+        for seg in classify_segments(x2, sr):
+            if seg["kind"] == "music":
+                a = int(seg["start_s"] * sr / block)
+                b = int(seg["end_s"] * sr / block) + 1
+                active[a:b] = True
+        if not active.any():
+            return x2.astype(np.float32)
+
+    if threshold_db is not None:
+        thr = np.full(nb, float(threshold_db))
+    else:
+        thr = _env_db(x2) - abs(headroom_db)  # band mag niet dicht bij de mix komen
+
+    static_cut = np.where(active, np.clip(env_db - thr, 0.0, abs(max_cut_db)), 0.0)
+
+    aA = float(np.exp(-block / (0.001 * attack_ms * sr))) if attack_ms > 0 else 0.0
+    aR = float(np.exp(-block / (0.001 * release_ms * sr))) if release_ms > 0 else 0.0
+    cut = np.empty_like(static_cut)
+    c = 0.0
+    for i, s in enumerate(static_cut):
+        c = aA * c + (1 - aA) * s if s > c else aR * c + (1 - aR) * s
+        cut[i] = c
+
+    centers = np.arange(nb) * block + block / 2.0
+    g = np.interp(np.arange(n), centers, 10.0 ** (-cut / 20.0)).astype(np.float32)
+    return (x2 - band * (1.0 - g)[None, :]).astype(np.float32)
+
+
 def _step_gate(x, sr, threshold_db: float, attack_ms: float = 5.0,
                release_ms: float = 120.0, hold_ms: float = 50.0, range_db: float = 12.0):
     return dsp.noise_gate(x, sr, threshold_db, attack_ms, release_ms, hold_ms, range_db)
@@ -246,6 +312,7 @@ STEP_REGISTRY = {
     "declick": _step_declick,
     "denoise": _step_denoise,
     "smart_denoise": _step_smart_denoise,
+    "band_duck": _step_band_duck,
     "deess": _step_deess,
     "dereverb": _step_dereverb,
     "gate": _step_gate,
