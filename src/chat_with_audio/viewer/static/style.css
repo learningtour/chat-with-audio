@@ -45,6 +45,10 @@ h4 { font-size: 13px; margin: 6px 0 8px; color: var(--muted); font-weight: 600; 
 .badge { font-size: 11px; font-weight: 600; border-radius: 6px; padding: 2px 8px;
   background: var(--panel2); border: 1px solid var(--border); color: var(--muted); }
 .badge.after { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+.badge.pass { color: #06301b; background: var(--good); border-color: var(--good); }
+.badge.fail { color: #330b09; background: var(--bad); border-color: var(--bad); }
+#compliance-panel h3 { display: flex; gap: 8px; align-items: center; }
+#compliance td i { color: var(--muted); font-size: 11px; }
 .badge-arrow { color: var(--muted); font-size: 11px; }
 
 /* ---------- transport ---------- */

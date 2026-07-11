@@ -54,7 +54,9 @@ def test_mono_has_no_stereo_block(sr):
 
 def test_dropout_detected_and_positioned(sr):
     x = _tone(sr, 6, amp=0.2)
-    a = int(3.0 * sr)
+    # gat begint op een kwartperiode (golfvorm op maximum): abrupt afgekapt,
+    # zoals een echte dropout — niet netjes op een nuldoorgang
+    a = int((3.0 + 1 / (4 * 440)) * sr)
     x[a:a + int(0.05 * sr)] = 0.0  # 50 ms digitaal gat midden in de toon
     m = analysis.analyze(x[None, :], sr)
     assert m["dropouts"]["count"] == 1

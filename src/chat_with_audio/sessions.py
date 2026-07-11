@@ -165,7 +165,8 @@ def load_session(session_id: str) -> dict:
     for key, fname in (("original", "analysis_original.json"),
                        ("processed", "analysis_processed.json"),
                        ("chain", "chain.json"),
-                       ("timeline", "timeline.json")):
+                       ("timeline", "timeline.json"),
+                       ("compliance", "compliance.json")):
         f = d / fname
         if f.exists():
             data[key] = json.loads(f.read_text())

@@ -61,6 +61,23 @@ def load_audio(path: str | Path, mono: bool = False) -> tuple[np.ndarray, int]:
     return x, int(sr)
 
 
+def resample(x: np.ndarray, sr: int, target_sr: int) -> tuple[np.ndarray, int]:
+    """Hoogkwalitatieve polyfase-SRC (voor 48 kHz-aflevering e.d.)."""
+    if target_sr == sr:
+        return x, sr
+    from fractions import Fraction
+
+    from scipy.signal import resample_poly
+
+    frac = Fraction(target_sr, sr).limit_denominator(1000)
+    x2 = x[None, :] if x.ndim == 1 else x
+    y = resample_poly(x2.astype(np.float64), frac.numerator, frac.denominator, axis=1)
+    return y.astype(np.float32), target_sr
+
+
+BIT_DEPTH_SUBTYPES = {16: "PCM_16", 24: "PCM_24", 32: "FLOAT"}
+
+
 def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24") -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

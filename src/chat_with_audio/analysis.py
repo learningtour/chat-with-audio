@@ -118,12 +118,18 @@ def _stereo_qc(x: np.ndarray) -> dict | None:
 
 def _detect_dropouts(mono: np.ndarray, sr: int, max_report: int = 5) -> dict:
     """Digitale dropouts: exacte-stilte-gaten midden in signaal (3 ms - 0.5 s),
-    met hoorbaar materiaal direct ervoor en erna."""
+    met hoorbaar materiaal direct ervoor en erna.
+
+    Een echte dropout kapt de golfvorm midden in een cyclus af; nette gating,
+    fades en zinseindes landen (vrijwel) op een nuldoorgang. Daarom telt een
+    gat alleen mee als de golfvorm op minstens één rand abrupt is afgebroken.
+    """
     tiny = np.abs(mono) < 1e-7
     edges = np.diff(np.concatenate([[0], tiny.astype(np.int8), [0]]))
     starts, ends = np.where(edges == 1)[0], np.where(edges == -1)[0]
     min_len, max_len = int(0.003 * sr), int(0.5 * sr)
     ctx = int(0.05 * sr)
+    n = mono.shape[0]
 
     def _active(a: int, b: int) -> bool:
         seg = mono[max(0, a):b]
@@ -135,8 +141,15 @@ def _detect_dropouts(mono: np.ndarray, sr: int, max_report: int = 5) -> dict:
     for a, b in zip(starts, ends, strict=True):
         if not (min_len <= b - a <= max_len):
             continue
-        if _active(a - ctx, a) and _active(b, b + ctx):
-            positions.append(round(a / sr, 3))
+        if not (_active(a - ctx, a) and _active(b, b + ctx)):
+            continue
+        local_peak = float(np.abs(np.concatenate(
+            [mono[max(0, a - ctx):a], mono[b:min(n, b + ctx)]])).max())
+        pre = abs(float(mono[a - 1])) if a > 0 else 0.0
+        post = abs(float(mono[b])) if b < n else 0.0
+        if max(pre, post) < 0.1 * local_peak:
+            continue  # rand op een nuldoorgang: gating/fade, geen dropout
+        positions.append(round(a / sr, 3))
     return {"count": len(positions), "positions_s": positions[:max_report]}
 
 

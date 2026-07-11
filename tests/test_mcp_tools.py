@@ -9,7 +9,8 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "optimize_audio", "transcribe_audio", "separate_stems", "rebalance_music",
             "improve_folder", "view_audio", "rate_audio", "export_to_audition",
             "list_sessions", "open_viewer", "smart_edit",
-            "list_recipes", "save_recipe", "apply_recipe"}
+            "list_recipes", "save_recipe", "apply_recipe",
+            "check_compliance", "master_for"}
 
 
 def test_tool_registry():

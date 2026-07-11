@@ -583,6 +583,139 @@ def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "au
 
 
 @mcp.tool()
+def check_compliance(file_path: str, spec: str = "ebu-r128") -> dict:
+    """Controleer een bestand tegen een aflever-spec ("is dit broadcast-proof?").
+
+    Specs: ebu-r128 (Europese omroep, -23 LUFS), atsc-a85 (VS-tv, -24),
+    netflix-2.0 (dialogue-gated -27), apple-podcast (-16), spotify (-14),
+    youtube (-14), acx-audiobook (RMS/piek/ruisvloer). Het rapport geeft per
+    criterium gemeten vs vereist met pass/fail, plus de universele technische
+    QC-poorten (clipping, dropouts, dood kanaal, tegenfase, kop/staart-stilte).
+    Dialogue-gated loudness wordt benaderd via BS.1770 over de gedetecteerde
+    spraaksegmenten. Repareren: master_for.
+    """
+    from chat_with_audio import compliance as comp
+
+    x, sr = io.load_audio(file_path)
+    m = analysis.analyze(x, sr)
+    dlg = None
+    if comp.SPECS.get(spec, {}).get("gating") == "dialogue":
+        from chat_with_audio.segments import classify_segments
+
+        dlg = comp.dialogue_loudness(x, sr, classify_segments(x, sr))
+    report = comp.check(m, spec, dialogue_lufs=dlg)
+    report["file"] = str(Path(file_path).expanduser())
+    report["available_specs"] = comp.list_specs()
+    if not report["passed"]:
+        report["hint"] = (f"master_for(file_path, spec='{spec}') mastert naar deze "
+                          "spec en controleert opnieuw.")
+    return report
+
+
+@mcp.tool()
+def master_for(file_path: str, spec: str = "ebu-r128", out_path: str | None = None,
+               sample_rate: int | None = None, bit_depth: int | None = None,
+               user_request: str = "") -> dict:
+    """Master een bestand naar een aflever-spec en controleer het resultaat.
+
+    Brengt de loudness naar het spec-doel (dialogue-gated specs sturen op de
+    spraaksegmenten) met een true-peak-limiter onder het spec-plafond, draait
+    daarna check_compliance opnieuw en levert het pass/fail-rapport mee.
+    out_path exporteert het resultaat; sample_rate (bv. 48000) en bit_depth
+    (16|24|32, 32 = float) maken er een leveringsbestand van — broadcast wil
+    doorgaans 48 kHz / 24-bit wav. Het rapport staat ook als compliance.json
+    in de sessie en als paneel in de viewer.
+    """
+    from chat_with_audio import compliance as comp
+    from chat_with_audio.segments import classify_segments
+
+    spec_def = comp.SPECS.get(spec)
+    if spec_def is None:
+        raise ValueError(f"Onbekende spec '{spec}'. "
+                         f"Beschikbaar: {', '.join(sorted(comp.SPECS))}")
+    if bit_depth is not None and bit_depth not in io.BIT_DEPTH_SUBTYPES:
+        raise ValueError(f"bit_depth moet 16, 24 of 32 zijn (niet {bit_depth}).")
+
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    segs = classify_segments(x, sr)
+    tp_max = spec_def.get("true_peak_max", -1.0)
+    loud = spec_def.get("loudness")
+    rationale = [f"Master naar {spec_def['name']}."]
+    steps: list[dict] = []
+
+    if loud and spec_def.get("gating") == "dialogue":
+        dlg0 = comp.dialogue_loudness(x, sr, segs)
+        if dlg0 is None:
+            raise ValueError("Geen spraak gevonden om dialogue-gated op te sturen; "
+                             "gebruik een integrated spec (bv. ebu-r128).")
+        gain = loud["target"] - dlg0
+        steps.append({"type": "gain", "gain_db": round(gain, 2)})
+        steps.append({"type": "limiter", "ceiling_db": round(tp_max - 0.3, 2)})
+        rationale.append(f"Dialogue-gated loudness {dlg0:.1f} -> {loud['target']} LUFS "
+                         f"({gain:+.1f} dB), true-peak-limiter op {tp_max - 0.3:.1f} dBTP.")
+    elif loud:
+        steps.append({"type": "loudness_normalize", "target_lufs": loud["target"],
+                      "true_peak_db": tp_max})
+        rationale.append(f"Loudness naar {loud['target']} LUFS, true peak <= {tp_max} dBTP.")
+    elif "rms_range" in spec_def:  # ACX: stuur op RMS-midden met piekbewaking
+        lo, hi = spec_def["rms_range"]
+        gain = (lo + hi) / 2.0 - (m0.get("rms_db") or -20.0)
+        steps.append({"type": "gain", "gain_db": round(gain, 2)})
+        steps.append({"type": "limiter",
+                      "ceiling_db": spec_def.get("sample_peak_max", -3.0) - 0.2})
+        rationale.append(f"RMS naar {(lo + hi) / 2:.0f} dB ({gain:+.1f} dB), "
+                         "piekbewaking voor de ACX-piekeis.")
+
+    y, resolved = chain.run_chain(x, sr, steps)
+    m1 = analysis.analyze(y, sr)
+    dlg1 = (comp.dialogue_loudness(y, sr, classify_segments(y, sr))
+            if spec_def.get("gating") == "dialogue" else None)
+    report_after = comp.check(m1, spec, dialogue_lufs=dlg1)
+    rationale.append("Eindcontrole: " + ("GESLAAGD voor " if report_after["passed"]
+                     else "nog NIET geslaagd voor ") + spec_def["name"] +
+                     ("" if report_after["passed"] else
+                      f" (open: {', '.join(report_after['failed_checks'])})"))
+
+    session = sessions.create_session(
+        file_path, x, sr, m0, y, m1, resolved, rationale, None,
+        label=f"{Path(file_path).name} — master {spec}",
+        user_request=user_request or None,
+        timeline={"segments": segs})
+    d = sessions.session_path(session["session_id"])
+    import json as _json
+
+    (d / "compliance.json").write_text(
+        _json.dumps(report_after, indent=2, ensure_ascii=False))
+
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(d / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "compliance": report_after,
+        "rationale": rationale,
+        "deltas": session["deltas"],
+    }
+    if out_path:
+        y_out, sr_out = (io.resample(y, sr, sample_rate) if sample_rate else (y, sr))
+        out = Path(out_path).expanduser()
+        subtype = io.BIT_DEPTH_SUBTYPES.get(bit_depth or 24, "PCM_24")
+        if out.suffix.lower() in ("", ".wav"):
+            export = io.save_wav(out if out.suffix else out.with_suffix(".wav"),
+                                 y_out, sr_out, subtype=subtype)
+        else:
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as td:
+                tmp = Path(td) / "master.wav"
+                io.save_wav(tmp, y_out, sr_out, subtype=subtype)
+                export = io.encode_wav_to(tmp, out)
+        result["export"] = {"path": str(export), "sample_rate": sr_out,
+                            "bit_depth": bit_depth or 24}
+    return result
+
+
+@mcp.tool()
 def list_recipes() -> dict:
     """Toon alle beschikbare recepten: bewaarde bewerkingsketens om te hergebruiken.
 

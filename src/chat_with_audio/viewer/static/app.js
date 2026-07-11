@@ -134,6 +134,7 @@ async function openSession(id) {
   redrawWaves(null);
   renderTimeline();
   renderMetrics();
+  renderCompliance();
   renderChain();
   setSpec("original");
 
@@ -229,6 +230,26 @@ function renderMetrics() {
     }
   }
   $("metrics").innerHTML = html;
+}
+
+function renderCompliance() {
+  const panel = $("compliance-panel");
+  const rep = current.compliance;
+  if (!rep || !rep.checks) { panel.hidden = true; return; }
+  panel.hidden = false;
+  $("comp-spec").textContent = rep.spec_name || rep.spec;
+  const v = $("comp-verdict");
+  v.textContent = rep.passed ? "GESLAAGD" : "NIET GESLAAGD";
+  v.className = "badge " + (rep.passed ? "pass" : "fail");
+  let html = "<tr><th>Criterium</th><th>Gemeten</th><th>Vereist</th><th></th></tr>";
+  for (const c of rep.checks) {
+    const mark = c.passed ? "✓" : (c.advisory ? "△" : "✗");
+    const cls = c.passed ? "delta-good" : (c.advisory ? "" : "delta-bad");
+    html += `<tr><td>${c.name}${c.advisory ? " <i>(richtlijn)</i>" : ""}</td>` +
+      `<td>${c.measured ?? "—"}</td><td>${c.requirement}</td>` +
+      `<td class="${cls}">${mark}</td></tr>`;
+  }
+  $("compliance").innerHTML = html;
 }
 
 function renderChain() {
