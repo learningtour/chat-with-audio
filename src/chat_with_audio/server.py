@@ -583,6 +583,78 @@ def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "au
 
 
 @mcp.tool()
+def list_recipes() -> dict:
+    """Toon alle beschikbare recepten: bewaarde bewerkingsketens om te hergebruiken.
+
+    Recepten zijn losse JSON-bestanden: ingebouwde presets (gedestilleerd uit
+    echte sessies) plus eigen recepten in ~/AudioImprove/recipes/. Delen kan
+    door het bestand door te geven; apply_recipe accepteert ook een pad naar
+    een recept-JSON van iemand anders.
+    """
+    from chat_with_audio import recipes as recipes_mod
+
+    items = recipes_mod.list_recipes()
+    return {"count": len(items), "recipes": items,
+            "recipes_dir": str(recipes_mod.recipes_dir()),
+            "hint": "apply_recipe past een recept toe op een bestand; save_recipe "
+                    "bewaart de keten van een geslaagde sessie als nieuw recept."}
+
+
+@mcp.tool()
+def save_recipe(name: str, session_id: str | None = None,
+                steps: list[dict] | None = None, description: str = "") -> dict:
+    """Bewaar een bewerkingsketen als herbruikbaar recept ("bewaar dit als preset").
+
+    Bron: session_id (neemt de uitgevoerde keten van die sessie over — de
+    natuurlijke route na "dit klinkt goed") of een expliciete steps-lijst
+    (zelfde formaat als apply_chain). Het recept wordt een JSON-bestand in
+    ~/AudioImprove/recipes/ dat je kunt delen; toepassen gaat met apply_recipe.
+    """
+    from chat_with_audio import recipes as recipes_mod
+
+    if session_id:
+        data = sessions.load_session(session_id)
+        chain_steps = (data.get("chain") or {}).get("steps") or []
+        if not chain_steps:
+            raise ValueError(f"Sessie {session_id} bevat geen bewerkingsketen "
+                             "(alleen analyse).")
+        if any(s.get("type") == "region" for s in chain_steps):
+            raise ValueError("Deze sessie is een chirurgische regio-bewerking; die "
+                             "is aan dít bestand gebonden en niet als recept "
+                             "herbruikbaar. smart_edit vindt de regio's per bestand "
+                             "opnieuw.")
+        steps = chain_steps
+        if not description:
+            rat = (data.get("chain") or {}).get("rationale") or []
+            description = rat[0] if rat else ""
+    if not steps:
+        raise ValueError("Geef session_id of steps op.")
+    rec = recipes_mod.save_recipe(name, steps, description=description,
+                                  source_session=session_id)
+    return {"saved": rec,
+            "hint": f"Toepassen: apply_recipe(file_path, recipe='{rec['name']}'). "
+                    f"Delen: geef {rec['path']} door."}
+
+
+@mcp.tool()
+def apply_recipe(file_path: str, recipe: str, out_path: str | None = None,
+                 user_request: str = "") -> dict:
+    """Pas een bewaard recept toe ("doe dit bestand zoals mijn podcast-preset").
+
+    recipe: een naam uit list_recipes of een pad naar een recept-JSON (bv.
+    gedeeld door iemand anders). De stappen worden gevalideerd voordat er iets
+    wordt uitgevoerd; het resultaat is een gewone A/B-sessie in de viewer.
+    """
+    from chat_with_audio import recipes as recipes_mod
+
+    rec = recipes_mod.load_recipe(recipe)
+    rationale = [f"Recept '{rec['name']}' toegepast"
+                 + (f": {rec['description']}" if rec.get("description") else ".")]
+    return _process(file_path, rec["steps"], rationale, out_path=out_path,
+                    user_request=user_request or None)
+
+
+@mcp.tool()
 def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: float = 2.0,
                    max_iterations: int = 4, denoise: str = "auto",
                    judge_model: str = "small", out_path: str | None = None) -> dict:

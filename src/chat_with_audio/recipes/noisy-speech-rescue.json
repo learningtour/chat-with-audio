@@ -1,0 +1,11 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "noisy-speech-rescue",
+  "description": "Reddingsketen voor ruizige spraakopnames: segmentgestuurde ontruising (DeepFilterNet op spraak als het [ai]-extra is geinstalleerd, anders spectral gating), leveler en loudness naar -16 LUFS. Zwaarder dan podcast-speech; alleen inzetten als de ruis echt stoort.",
+  "steps": [
+    {"type": "highpass", "freq": 80},
+    {"type": "smart_denoise"},
+    {"type": "leveler", "target_db": -18, "max_boost_db": 18, "max_cut_db": 12},
+    {"type": "loudness_normalize", "target_lufs": -16, "true_peak_db": -1.5}
+  ]
+}

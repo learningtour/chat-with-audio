@@ -6,6 +6,7 @@ import soundfile as sf
 @pytest.fixture(autouse=True)
 def _isolate_sessions(tmp_path, monkeypatch):
     monkeypatch.setenv("AIT_SESSIONS_DIR", str(tmp_path / "sessions"))
+    monkeypatch.setenv("AIT_RECIPES_DIR", str(tmp_path / "recipes"))
 
 
 @pytest.fixture

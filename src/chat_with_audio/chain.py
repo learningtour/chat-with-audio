@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+from collections.abc import Callable
 
 import numpy as np
 
@@ -357,12 +358,14 @@ STEP_REGISTRY = {
 }
 
 
-def run_chain(x: np.ndarray, sr: int, steps: list[dict],
-              progress=None) -> tuple[np.ndarray, list[dict]]:
-    """Voer de stappen uit; geeft (audio, resolved_steps incl. defaults) terug."""
-    y = x
-    resolved: list[dict] = []
-    for i, step in enumerate(steps):
+def validate_steps(steps: list[dict]) -> list[tuple[str, Callable, dict]]:
+    """Controleer stappen tegen STEP_REGISTRY zonder ze uit te voeren.
+
+    Geeft per stap (type, fn, params) terug; gebruikt door run_chain en door
+    recipes (een recept mag nooit stilletjes ongeldige stappen bevatten).
+    """
+    checked: list[tuple[str, Callable, dict]] = []
+    for step in steps:
         step = dict(step)
         stype = step.pop("type", None)
         fn = STEP_REGISTRY.get(stype)
@@ -374,12 +377,24 @@ def run_chain(x: np.ndarray, sr: int, steps: list[dict],
         if unknown:
             raise ValueError(f"Onbekende parameter(s) {sorted(unknown)} voor stap "
                              f"'{stype}'. Geldig: {sorted(valid)}")
-        bound = sig.bind(None, sr, **step)
+        checked.append((stype, fn, step))
+    return checked
+
+
+def run_chain(x: np.ndarray, sr: int, steps: list[dict],
+              progress=None) -> tuple[np.ndarray, list[dict]]:
+    """Voer de stappen uit; geeft (audio, resolved_steps incl. defaults) terug."""
+    y = x
+    resolved: list[dict] = []
+    checked = validate_steps(steps)  # alles vooraf valideren, dan pas rekenen
+    for i, (stype, fn, params_in) in enumerate(checked):
+        sig = inspect.signature(fn)
+        bound = sig.bind(None, sr, **params_in)
         bound.apply_defaults()
         params = {k: v for k, v in bound.arguments.items() if k not in ("x", "sr")}
-        log.info("stap %d/%d: %s %s", i + 1, len(steps), stype, params)
+        log.info("stap %d/%d: %s %s", i + 1, len(checked), stype, params)
         if progress:
-            progress(i, len(steps), stype)
-        y = fn(y, sr, **step)
+            progress(i, len(checked), stype)
+        y = fn(y, sr, **params_in)
         resolved.append({"type": stype, **params})
     return y, resolved

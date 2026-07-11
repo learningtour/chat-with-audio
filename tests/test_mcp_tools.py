@@ -8,7 +8,8 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "apply_chain", "repair_audio", "match_reference", "refine_audio",
             "optimize_audio", "transcribe_audio", "separate_stems", "rebalance_music",
             "improve_folder", "view_audio", "rate_audio", "export_to_audition",
-            "list_sessions", "open_viewer", "smart_edit"}
+            "list_sessions", "open_viewer", "smart_edit",
+            "list_recipes", "save_recipe", "apply_recipe"}
 
 
 def test_tool_registry():
@@ -61,6 +62,39 @@ def test_smart_edit_tool(tmp_path, sr):
     detail = server.list_sessions(session_id=res["session_id"])
     assert detail["timeline"]["regions"], "regiokaart hoort in de sessietijdlijn"
     assert detail["chain"]["steps"][0]["type"] == "region"
+
+
+def test_recipe_tools_roundtrip(noisy_wav):
+    res = server.apply_chain(str(noisy_wav), steps=[{"type": "highpass", "freq": 120}])
+    saved = server.save_recipe("hoogdoorlaat", session_id=res["session_id"])
+    assert saved["saved"]["name"] == "hoogdoorlaat"
+
+    out = server.apply_recipe(str(noisy_wav), "hoogdoorlaat")
+    assert out["chain"][0]["type"] == "highpass"
+    assert out["chain"][0]["freq"] == 120
+    assert out["session_id"] != res["session_id"]
+
+    listing = server.list_recipes()
+    assert any(r["name"] == "hoogdoorlaat" for r in listing["recipes"])
+    assert any(r["builtin"] for r in listing["recipes"])
+
+
+def test_save_recipe_refuses_region_sessions(tmp_path, sr):
+    import numpy as np
+    import soundfile as sf
+
+    t = np.arange(sr * 12) / sr
+    base = (0.1 * np.sin(2 * np.pi * 300 * t)
+            * (np.sin(2 * np.pi * 5.0 * t) > 0))
+    hum = 0.02 * np.sin(2 * np.pi * 50 * t) * ((t >= 4) & (t < 8))
+    p = tmp_path / "hum.wav"
+    sf.write(str(p), (base + hum).astype(np.float32), sr)
+    res = server.smart_edit(str(p))
+    assert res["regions"]
+    import pytest
+
+    with pytest.raises(ValueError, match="chirurgische"):
+        server.save_recipe("mag-niet", session_id=res["session_id"])
 
 
 def test_smart_edit_clean_file_does_nothing(tmp_path, sr):

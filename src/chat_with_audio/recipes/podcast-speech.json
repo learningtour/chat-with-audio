@@ -1,0 +1,12 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "podcast-speech",
+  "description": "Kalme spraakketen zonder AI-nabewerking: highpass, de-esser, leveler, lichte compressie en loudness naar -16 LUFS. Gedestilleerd uit de best scorende nachtrun-variant ('rustig-geen-ai', hoogste woordretentie in de Whisper-jury).",
+  "steps": [
+    {"type": "highpass", "freq": 80},
+    {"type": "deess"},
+    {"type": "leveler", "target_db": -18, "max_boost_db": 20, "max_cut_db": 18},
+    {"type": "compressor", "threshold_db": -10, "ratio": 3, "attack_ms": 3, "release_ms": 150},
+    {"type": "loudness_normalize", "target_lufs": -16, "true_peak_db": -1.5}
+  ]
+}

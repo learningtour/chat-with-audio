@@ -1,0 +1,9 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "music-master",
+  "description": "Voorzichtige muziek-master: subsonische highpass en loudness naar -14 LUFS (streaming-niveau) met true-peak-limiter op -1.0 dBTP. Dynamiek en klankbeeld blijven intact.",
+  "steps": [
+    {"type": "highpass", "freq": 30},
+    {"type": "loudness_normalize", "target_lufs": -14, "true_peak_db": -1.0}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "broadcast-quiet-pauses",
+  "description": "Uitzend-stilte: alles buiten de spraak gaat omlaag zonder gate-artefacten — woordaanzetten en slotmedeklinkers blijven staan waar een klassieke gate ze zou afknabbelen. Daarna loudness naar -16 LUFS.",
+  "steps": [
+    {"type": "highpass", "freq": 80},
+    {"type": "pause_duck", "duck_db": 18},
+    {"type": "loudness_normalize", "target_lufs": -16, "true_peak_db": -1.5}
+  ]
+}
