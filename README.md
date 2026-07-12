@@ -98,6 +98,30 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
   track, optional clock-drift correction — and come out as aligned WAVs plus
   an Audition session. A/B in the viewer: unsynced echo soup vs the synced
   sum.
+- **"Haal de uhs eruit en maak de pauzes strakker"** — `edit_speech`:
+  text-based dialogue editing on Whisper word timestamps. Fillers and word
+  doubles out, pauses tightened to a target, phrases cut by transcript text,
+  names bleeped/redacted — every joint crossfaded, plan mode to confirm
+  before committing, cut list exportable as DAW markers.
+- **"Speed it up 10% without changing the pitch"** — the time & pitch
+  engine: `time_stretch` (peak-locked phase vocoder), `pitch_shift` (with
+  formant preservation — no Mickey Mouse) and `varispeed` (tape-style).
+- **"Make him sound like he's on the phone"** — futz recipes: telephone,
+  walkie, megaphone, other-room (worldizing), small-speaker; built on the
+  `saturate`, `convolve_ir` and `delay` steps.
+- **"Fit this ADR line into the scene"** — `match_room`: spectral match to
+  the scene reference plus a synthesized room at the RT60 *measured* from
+  that reference.
+- **"Mix my boom and lavs"** — `automix_tracks`: sync on the audio itself,
+  then Dugan-style gain sharing (shares always sum to 1 — no noise
+  stacking, no gate chatter). `mix_minus` builds the classic N-1 return.
+- **"What will Spotify's encoder do to this?"** — `codec_preview`:
+  encode→decode through real codecs and measure loudness shift and codec
+  overs before you publish.
+- **"Deliver it"** — `write_bwf_metadata` (bext/iXML broadcast metadata),
+  `export_podcast_mp3` (ID3 chapters players actually show),
+  `delivery_package` (master + QC + compliance + markers + checksums in one
+  folder), `export_dme` (dialogue + M&E stems for dubbing).
 - **"Open the viewer"** / **"What exactly changed?"** — A/B comparison; Claude
   reads the same session data the viewer shows.
 
@@ -133,7 +157,7 @@ the tool then falls back to spectral gating automatically.
   Claude Desktop after installing; the tools appear under "chat-with-audio".
 - **Codex CLI/app**: registered as a global MCP server via
   `codex mcp add chat-with-audio -- <uv-path> run --directory <project-folder> chat-with-audio-mcp`
-  (verify with `codex mcp list`). Same 30 tools, same sessions and viewer.
+  (verify with `codex mcp list`). Same 40 tools, same sessions and viewer.
 
 Note: run `uv sync --all-extras` first, otherwise the first server start may
 time out while building/downloading.
@@ -194,7 +218,7 @@ Steps are validated before anything runs.
 | Intelligibility | `asr.py` | Whisper transcription + word retention ([asr] extra) |
 | Dereverberation | `dsp/dereverb.py` | ClearVoice MossFormer2 48 kHz, speech segments only ([enhance] extra) |
 | Chain | `chain.py` | step registry (incl. leveler, smart_denoise), loudness normalization |
-| MCP server | `server.py` | 30 tools over stdio (FastMCP) |
+| MCP server | `server.py` | 40 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B player |
 
 Loudness targets: speech −16 LUFS / TP −1.5 dBTP, music −14 LUFS / TP −1.0 dBTP.

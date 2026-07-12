@@ -74,13 +74,45 @@ uv run ait viewer                                 # viewer on :8471
   periodiek materiaal (metronoom) is inherent dubbelzinnig voor correlatie —
   testsignalen moeten aperiodiek gaten (en recorder-seeds ver van event-seeds,
   anders ontstaat een echte schijncorrelatie).
-- `server.py` — 30 MCP tools; `sessions.py` — session folders under
+- `speech_edit.py` → tekstmontage (`edit_speech`): planner op woordtijd-
+  stempels (fillers/verdubbelingen/pauzes/frases/bleep) + renderer met
+  raised-cosine-crossfades; bleeps eerst (lengte-neutraal), dan knips.
+  `asr.transcribe_words` levert de woordenlijst; tests mocken die — de motor
+  is puur DSP. Guards rond woordknips zijn begrensd door de buurwoorden.
+- `dsp/timepitch.py` → phase vocoder met identity phase locking
+  (`time_stretch`), `pitch_shift` = stretch + resample_poly terug (formant-
+  behoud via cepstrale omhullende, correctie ±18 dB — 12 was meetbaar te
+  weinig), `varispeed` = één resample.
+- `dsp/utility.py` → gereedschapsstappen (trim/kanalen/fase/expander/
+  multiband (LR4-splitsing sommeert vlak)/transient shaper/tilt/M-S/
+  bass_mono/tone_slate/two_pop). `io.save_wav` past HP-TPDF-dither toe bij
+  16-bit (zelf kwantiseren naar int16 — geen dubbele kwantisatie).
+- `dsp/space.py` → `convolve_ir` (IR-wav of synth-kamer: octaafband-ruis,
+  per band eigen verval), `saturate`, `delay`, `estimate_rt60` (Schroeder-
+  integratie over gaten tussen bursts; 80 ms eind-guard tegen fade-in-lek).
+  `match_room` tool = match-EQ + synth-IR op gemeten RT60. Futz-recepten
+  (telephone/walkie/megaphone/other-room/small-speaker) zijn built-ins.
+- `bwf.py` → bext/iXML-chunks (RIFF-chirurgie, stdlib); `id3.py` → ID3v2.3
+  CHAP/CTOC-hoofdstukken; `delivery.py` → codec-roundtrip via libsndfile
+  (mp3/vorbis/opus — geen ffmpeg nodig; opus hersampelt naar 48k), md5's,
+  manifest. Tools: `codec_preview`, `write_bwf_metadata`,
+  `export_podcast_mp3`, `delivery_package`.
+- `automix.py` → Dugan-gain-sharing (aandelen sommeren altijd tot 1;
+  match-EQ naar het referentiespoor) + `mix_minus` (N-1). `automix_tracks`
+  hergebruikt de sync-engine; `export_dme` = vocals-stem + (mix − dialoog).
+- `server.py` — 40 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.
+  `list_sessions(search=, limit=)` zoekt; `cleanup_sessions` ruimt op
+  (dry_run standaard). `edit_speech`/`trim`/`time_stretch` e.d. veranderen de
+  duur — A/B in de viewer loopt dan uit de pas; de tijdlijn toont knips op de
+  oorspronkelijke tijdlijn.
 - `viewer/server.py` — stdlib http.server on 127.0.0.1:8471 (env `AIT_VIEWER_PORT`);
   `viewer/static/app.js` — A/B player: both buffers always play together,
-  switching = gain crossfade.
+  switching = gain crossfade. `/health` geeft de pakketversie; de MCP-server
+  vraagt een verouderde viewer via POST `/api/shutdown` netjes te stoppen en
+  start een verse (stale-code-fix na upgrades).
 
 ## Pitfalls
 

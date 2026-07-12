@@ -97,7 +97,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/" or path == "/index.html":
             self._static("index.html")
         elif path == "/health":
-            self._json({"status": "ok"})
+            from chat_with_audio import __version__
+
+            self._json({"status": "ok", "version": __version__})
         elif path == "/api/editors":
             self._json(available_editors())
         elif path == "/api/sessions":
@@ -142,6 +144,13 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
             if self.path == "/api/open-in-editor":
                 self._open_in_editor(body)
+            elif self.path == "/api/shutdown":
+                # nette zelf-herstart na een upgrade: de MCP-server vraagt een
+                # verouderde viewer te stoppen en start dan een verse
+                import threading
+
+                self._json({"stopping": True})
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
             else:
                 self._error(404, "onbekend pad")
         except BrokenPipeError:

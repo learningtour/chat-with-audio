@@ -6,6 +6,21 @@ tests. This document is the continuation plan — any future session picks up
 here. Scope decision by Serge: live production (his ch. 29) is out of scope
 for the tool; capture it as knowledge, not features.*
 
+> **Status update — night of July 12→13, 2026: all six phases built.**
+> A (edit_speech: fillers/doubles/pauses/text-cuts/bleep, plan mode,
+> markers), B (time_stretch/pitch_shift+formant-preserve/varispeed),
+> C (16 utility steps, TPDF dither on 16-bit export, tone&slate/two-pop,
+> OP-59 + ARIB specs), D (convolve_ir + synth rooms, saturate, delay,
+> match_room with measured RT60, five futz recipes), E (bext/iXML,
+> ID3 chapters, codec_preview, delivery_package), F (automix_tracks,
+> mix_minus, export_dme). Plus: viewer version-handshake restart,
+> list_sessions search/limit, cleanup_sessions, v0.3.0.
+> Now: **40 MCP tools, 200 tests.** Remaining from the list below:
+> the per-category long tail (BWF timecode *sync*, noise-profile-from-
+> selection, wow/flutter, dynamic/M-S EQ, 7.1/LtRt, scene noise matching,
+> codec-artifact repair, batch rename, session archive) and the
+> follow-ups (real-material validation, README hero, PyPI, Windows run).
+
 ## How to read this
 
 Per category: **✓ covered** (exists and tested), **± partial**, **✗ gap**

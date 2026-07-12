@@ -36,17 +36,36 @@ def _viewer_url(session_id: str | None = None) -> str:
     return f"{base}#/session/{session_id}" if session_id else base
 
 
-def _viewer_running() -> bool:
+def _viewer_running() -> str | None:
+    """Draaiende viewer? Geeft de versie terug (of "?" bij een oude viewer)."""
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{VIEWER_PORT}/health", timeout=1):
-            return True
+        with urllib.request.urlopen(f"http://127.0.0.1:{VIEWER_PORT}/health",
+                                    timeout=1) as r:
+            data = json.loads(r.read() or b"{}")
+            return str(data.get("version") or "?")
     except Exception:
-        return False
+        return None
 
 
 def _ensure_viewer() -> bool:
-    if _viewer_running():
+    from chat_with_audio import __version__
+
+    running = _viewer_running()
+    if running == __version__:
         return True
+    if running is not None:
+        # verouderde viewer (van vóór een upgrade): netjes vragen te stoppen,
+        # zodat de verse code — en dus de verse app.js — gaat serveren
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{VIEWER_PORT}/api/shutdown", data=b"{}",
+                headers={"Content-Type": "application/json"}, method="POST")
+            urllib.request.urlopen(req, timeout=2)
+            time.sleep(0.5)
+        except Exception:
+            log.warning("kon verouderde viewer (v%s) niet herstarten; hij "
+                        "blijft draaien", running)
+            return True
     kwargs: dict = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
     if sys.platform == "win32":
         kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED | NEW_PROCESS_GROUP
@@ -342,20 +361,78 @@ def improve_folder(dir_path: str, mode: str = "improve", profile: str = "auto",
 
 
 @mcp.tool()
-def list_sessions(session_id: str | None = None) -> dict:
+def list_sessions(session_id: str | None = None, search: str | None = None,
+                  limit: int | None = None) -> dict:
     """Toon eerdere sessies, of met session_id de volledige voor/na-vergelijking.
 
     Met session_id krijg je beide analyses (metrics, scores, issues), de
     uitgevoerde keten met rationale en de deltas — dezelfde data als de viewer
-    toont, dus hierover kun je doorpraten.
+    toont, dus hierover kun je doorpraten. search filtert op id, label,
+    bronpad of verzoek ("alle sessies van interview.wav"); limit begrenst de
+    lijst (nieuwste eerst). Opruimen: cleanup_sessions.
     """
     if session_id:
         data = sessions.load_session(session_id)
         data["viewer_url"] = _viewer_url(session_id)
         return data
-    items = sessions.list_sessions()
-    return {"count": len(items), "sessions": items,
+    items = sessions.search_sessions(search)
+    total = len(items)
+    if limit is not None and limit >= 0:
+        items = items[:limit]
+    return {"count": total, "shown": len(items), "sessions": items,
             "sessions_dir": str(sessions.sessions_dir())}
+
+
+@mcp.tool()
+def cleanup_sessions(older_than_days: float | None = None,
+                     keep_last: int | None = None, search: str | None = None,
+                     dry_run: bool = True) -> dict:
+    """Ruim sessiemappen op (elke sessie bevat wavs — dit is waar de GB's zitten).
+
+    Kies een criterium: older_than_days (alles ouder dan N dagen weg),
+    keep_last (alleen de N nieuwste blijven), en/of search (alleen sessies die
+    op de zoekterm matchen). Standaard dry_run=True: je ziet wat er zou
+    verdwijnen en hoeveel ruimte het scheelt; pas met dry_run=False wordt er
+    echt verwijderd.
+    """
+    if older_than_days is None and keep_last is None and search is None:
+        raise ValueError("Kies minstens één criterium: older_than_days, "
+                         "keep_last of search — anders zou álles weggaan.")
+    items = sessions.search_sessions(search)  # nieuwste eerst
+    doomed = []
+    now = time.time()
+    for i, s in enumerate(items):
+        sid = s["session_id"]
+        old_enough = True
+        if older_than_days is not None:
+            try:
+                created = time.mktime(time.strptime(s.get("created", ""),
+                                                    "%Y-%m-%d %H:%M:%S"))
+                old_enough = (now - created) / 86400.0 > older_than_days
+            except ValueError:
+                old_enough = False
+        beyond_keep = keep_last is None or i >= keep_last
+        if old_enough and beyond_keep and (older_than_days is not None
+                                           or keep_last is not None
+                                           or search is not None):
+            size = sessions.dir_size(sessions.session_path(sid))
+            doomed.append({"session_id": sid, "label": s.get("label"),
+                           "created": s.get("created"),
+                           "size_mb": round(size / 1e6, 1)})
+    if not dry_run:
+        for d in doomed:
+            sessions.delete_session(d["session_id"])
+    total_mb = round(sum(d["size_mb"] for d in doomed), 1)
+    return {
+        "dry_run": dry_run,
+        "would_delete" if dry_run else "deleted": doomed,
+        "count": len(doomed),
+        "total_mb": total_mb,
+        "remaining": len(items) - (0 if dry_run else len(doomed)),
+        "hint": ("Dit was een oefenrun: draai met dry_run=False om echt "
+                 f"{total_mb} MB vrij te maken." if dry_run and doomed
+                 else None),
+    }
 
 
 @mcp.tool()

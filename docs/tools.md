@@ -1,6 +1,6 @@
 # Tool reference
 
-All 30 MCP tools, grouped by job. Every processing tool creates a **session**
+All 40 MCP tools, grouped by job. Every processing tool creates a **session**
 (A/B audio, analyses, chain + rationale, timeline, provenance log) and
 returns its `session_id` plus a `viewer_url`. File inputs accept wav, mp3,
 m4a/aac, flac, ogg and aiff; `out_path` exports to the format matching its

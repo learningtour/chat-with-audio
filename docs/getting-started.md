@@ -20,7 +20,7 @@ git clone https://github.com/learningtour/chat-with-audio
 cd chat-with-audio
 uv sync --all-extras        # builds the C++ core + installs all AI extras
 uv run pytest               # 109 tests should pass
-uv run python scripts/mcp_smoke.py   # end-to-end MCP check (30 tools)
+uv run python scripts/mcp_smoke.py   # end-to-end MCP check (40 tools)
 ```
 
 `uv sync` without `--all-extras` installs a lean base (no torch, no

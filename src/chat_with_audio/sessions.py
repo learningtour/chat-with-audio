@@ -156,6 +156,38 @@ def list_sessions() -> list[dict]:
     return out
 
 
+def search_sessions(query: str | None = None) -> list[dict]:
+    """Sessies gefilterd op een zoekterm (in id, label, bronpad of verzoek)."""
+    items = list_sessions()
+    if not query:
+        return items
+    q = query.lower()
+    hits = []
+    for s in items:
+        haystack = " ".join(str(s.get(k) or "") for k in
+                            ("session_id", "label", "source_path",
+                             "user_request", "profile")).lower()
+        if q in haystack:
+            hits.append(s)
+    return hits
+
+
+def dir_size(d: Path) -> int:
+    return sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+
+
+def delete_session(session_id: str) -> int:
+    """Verwijder een sessiemap; geeft het aantal vrijgekomen bytes terug."""
+    import shutil
+
+    d = sessions_dir() / session_id
+    if "/" in session_id or ".." in session_id or not d.is_dir():
+        raise FileNotFoundError(f"Sessie '{session_id}' niet gevonden.")
+    size = dir_size(d)
+    shutil.rmtree(d)
+    return size
+
+
 def load_session(session_id: str) -> dict:
     """Volledige sessiedata: session.json + analyses + chain."""
     d = sessions_dir() / session_id

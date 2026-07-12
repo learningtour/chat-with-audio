@@ -1,7 +1,7 @@
 # Architecture
 
 ```
-Claude (chat) ── MCP (stdio) ──> server.py (30 tools, FastMCP)
+Claude (chat) ── MCP (stdio) ──> server.py (40 tools, FastMCP)
                                      │
              ┌───────────────────────┼────────────────────────┐
              ▼                       ▼                        ▼
