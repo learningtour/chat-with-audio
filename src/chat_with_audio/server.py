@@ -1687,6 +1687,183 @@ def sync_tracks(file_paths: list[str] | None = None, dir_path: str | None = None
 
 
 @mcp.tool()
+def automix_tracks(file_paths: list[str] | None = None, dir_path: str | None = None,
+                   reference: str | None = None, sync: bool = True,
+                   match_tone: bool = True, out_path: str | None = None) -> dict:
+    """Boom-lav-automix: meerdere dialoogmics automatisch mengen ("mix mijn
+    boom en lavs").
+
+    Sporen worden eerst uitgelijnd op het geluid zelf (sync=False slaat dat
+    over als ze al sample-synchroon zijn), spectraal naar het referentiespoor
+    gematcht (match_tone; de boom is meestal de referentie — een lav wisselt
+    dan niet van klankkleur met de boom) en daarna Dugan-stijl gemengd: elk
+    spoor krijgt per moment een aandeel evenredig met zijn energie en de som
+    van de aandelen is altijd 1 — mics die niets bijdragen zakken vanzelf weg
+    zonder gate-geknetter. A/B in de viewer: A = naïeve som, B = automix.
+    """
+    from chat_with_audio import automix as automix_mod
+    from chat_with_audio import sync as sync_mod
+
+    paths: list[Path] = []
+    if dir_path:
+        d = Path(dir_path).expanduser()
+        if not d.is_dir():
+            raise ValueError(f"Geen map: {d}")
+        paths = sorted(p for p in d.iterdir()
+                       if p.suffix.lower() in _AUDIO_EXTS and not p.name.startswith("."))
+    if file_paths:
+        paths += [Path(p).expanduser() for p in file_paths]
+    if len(paths) < 2:
+        raise ValueError("Automix vraagt minstens 2 sporen (boom + lav(s)).")
+
+    tracks: list[dict] = []
+    for p in paths:
+        x, fsr = io.load_audio(p)
+        tracks.append({"name": p.name, "audio": x, "sr": fsr})
+    if reference:
+        ref_name = Path(reference).expanduser().name
+        ref_i = next((i for i, t in enumerate(tracks) if t["name"] == ref_name), 0)
+    else:
+        ref_i = 0
+    sr = tracks[ref_i]["sr"]
+    for t in tracks:
+        if t["sr"] != sr:
+            t["audio"], t["sr"] = io.resample(t["audio"], t["sr"], sr)
+
+    sync_report = None
+    if sync:
+        monos = [t["audio"].mean(axis=0).astype(np.float64) for t in tracks]
+        results = sync_mod.sync_all(monos, sr, ref_i)
+        for t, r in zip(tracks, results, strict=True):
+            t.update(r)
+        tracks, total = sync_mod.align_tracks(tracks, sr)
+        aligned = [sync_mod.render_aligned(t, sr, total) for t in tracks]
+        sync_report = [{"name": t["name"], "offset_s": round(t["offset_s"], 4),
+                        "confidence": t["confidence"], "synced": t["synced"]}
+                       for t in tracks]
+    else:
+        aligned = [t["audio"] for t in tracks]
+
+    y, info = automix_mod.automix(aligned, sr,
+                                  match_to=ref_i if match_tone else None)
+    naive = sync_mod.mixdown(aligned)
+    m0 = analysis.analyze(naive, sr)
+    m1 = analysis.analyze(y, sr)
+    for entry, t in zip(info["tracks"], tracks, strict=True):
+        entry["name"] = t["name"]
+    rationale = [f"Automix van {len(tracks)} sporen (referentie "
+                 f"'{tracks[ref_i]['name']}'): Dugan-gain-sharing, som van de "
+                 "aandelen is altijd 1.",
+                 "A = naïeve som van de uitgelijnde sporen, B = de automix."]
+    session = sessions.create_session(
+        str(paths[0].parent), naive, sr, m0, y, m1,
+        [{"type": "automix", "tracks": [t["name"] for t in tracks]}],
+        rationale, None, label=f"automix — {paths[0].parent.name}")
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "tracks": info["tracks"],
+        "sync": sync_report,
+        "rationale": rationale,
+        "hint": "A/B in de viewer: A is de naïeve som, B de automix — je hoort "
+                "de ruisstapeling en het kamfilter verdwijnen.",
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
+def mix_minus(file_paths: list[str], exclude: str | int,
+              out_path: str | None = None) -> dict:
+    """N-1 / mix-minus: de som van alle sporen mínus één deelnemer.
+
+    De klassieke terugvoeding voor een inbeller of remote gast: iedereen
+    hoort de mix zonder zichzelf (geen echo, geen rondzingen). exclude is de
+    bestandsnaam of de index (0-gebaseerd) van het uit te sluiten spoor.
+    Sporen worden verondersteld al synchroon te zijn (dubbelender/sync_tracks).
+    """
+    from chat_with_audio import automix as automix_mod
+
+    paths = [Path(p).expanduser() for p in file_paths]
+    if isinstance(exclude, str) and not exclude.isdigit():
+        ex_name = Path(exclude).name
+        ex_i = next((i for i, p in enumerate(paths) if p.name == ex_name), None)
+        if ex_i is None:
+            raise ValueError(f"'{exclude}' zit niet in file_paths.")
+    else:
+        ex_i = int(exclude)
+    tracks = []
+    sr = None
+    for p in paths:
+        x, fsr = io.load_audio(p)
+        if sr is None:
+            sr = fsr
+        elif fsr != sr:
+            x, fsr = io.resample(x, fsr, sr)
+        tracks.append(x)
+    y = automix_mod.mix_minus(tracks, ex_i)
+    out = Path(out_path).expanduser() if out_path else \
+        paths[ex_i].parent / f"mixminus-{paths[ex_i].stem}.wav"
+    io.save_wav(out, y, sr)
+    return {
+        "output_path": str(out),
+        "excluded": paths[ex_i].name,
+        "included": [p.name for i, p in enumerate(paths) if i != ex_i],
+        "duration_s": round(y.shape[1] / sr, 2),
+    }
+
+
+@mcp.tool()
+def export_dme(file_path: str, out_dir: str | None = None,
+               music_split: bool = False) -> dict:
+    """Dialogue + M&E-stems uit een gemengd bestand (best effort, AI-scheiding).
+
+    D = het vocals-stem van de bronscheiding (Demucs), M&E = de mix minus de
+    dialoog — het klassieke "karaoke-M&E" voor hertaling/dubbing. Met
+    music_split=True wordt M&E verder gesplitst in music (bas+drums+harmonie)
+    en effects (rest). Eerlijke kanttekening: AI-scheiding is geen stemmenmix
+    uit de originele sessie; check de stems altijd op artefacten (viewer/
+    transcribe_audio) vóór levering. Vereist het [stems]-extra.
+    """
+    from chat_with_audio.dsp import stems as stems_mod
+
+    if not stems_mod.is_available():
+        raise RuntimeError(stems_mod.INSTALL_HINT)
+    x, sr = io.load_audio(file_path)
+    parts = stems_mod.separate(x, sr)
+    n = min(x.shape[1], min(p.shape[1] for p in parts.values()))
+    dialogue = parts["vocals"][:, :n]
+    me = (x[:, :n].astype(np.float64) - dialogue.astype(np.float64)).astype(np.float32)
+
+    src = Path(file_path).expanduser()
+    d = Path(out_dir).expanduser() if out_dir else \
+        sessions.sessions_dir() / f"dme-{src.stem}"
+    d.mkdir(parents=True, exist_ok=True)
+    written = {
+        "dialogue": str(io.save_wav(d / "dialogue.wav", dialogue, sr)),
+        "me": str(io.save_wav(d / "me.wav", me, sr)),
+    }
+    if music_split:
+        music = (parts["drums"][:, :n].astype(np.float64)
+                 + parts["bass"][:, :n].astype(np.float64)
+                 + parts["other"][:, :n].astype(np.float64)).astype(np.float32)
+        effects = (me.astype(np.float64) - music.astype(np.float64)).astype(np.float32)
+        written["music"] = str(io.save_wav(d / "music.wav", music, sr))
+        written["effects"] = str(io.save_wav(d / "effects.wav", effects, sr))
+    return {
+        "out_dir": str(d),
+        "stems": written,
+        "note": "AI-scheiding (best effort): D = vocals-stem, M&E = mix minus "
+                "dialoog. Controleer op artefacten vóór levering; dit vervangt "
+                "geen originele sessiestems.",
+        "hint": "dialogue.wav + me.wav samen zijn weer exact de mix.",
+    }
+
+
+@mcp.tool()
 def qc_folder(dir_path: str, spec: str | None = None,
               out_path: str | None = None) -> dict:
     """Keur een hele map audio in één keer (inkomende leveringen, archieven).

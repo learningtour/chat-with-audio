@@ -161,6 +161,20 @@ session where A is the unsynced sum (echo soup) and B the synced sum — you
 *hear* the sync. Known limitation: strictly periodic material (metronomes,
 click tracks) is inherently ambiguous for correlation-based sync.
 
+### `automix_tracks(file_paths | dir_path, reference=None, sync=True, match_tone=True, out_path=None)`
+Boom-lav auto-mix: align the mics on the audio itself (skip with
+`sync=False` if already sample-locked), spectrally match every track to
+the reference mic (usually the boom — a lav no longer changes timbre
+against it), then mix Dugan-style: each track's share follows its energy
+and the shares always sum to 1 — idle mics sink away without gate chatter,
+and three open mics don't stack +4.8 dB of noise. A/B in the viewer:
+A = the naive sum, B = the automix.
+
+### `mix_minus(file_paths, exclude, out_path=None)`
+Classic N-1: the sum of all tracks minus one participant (by name or
+index) — the return feed for a caller or remote guest: everyone hears the
+mix without themselves (no echo, no feedback).
+
 ---
 
 ## Music & stems (require the `stems` extra)
@@ -174,6 +188,14 @@ Peak-guarded remix, optional loudness target, A/B session.
 
 ### `export_to_audition(session_id | file_path, source="original", include_mix=True, open_app=True)`
 Stems + a `.sesx` multitrack session, opened directly in Adobe Audition.
+
+### `export_dme(file_path, out_dir=None, music_split=False)`
+Dialogue + M&E stems from a mixed file (best effort, AI separation):
+D = the vocals stem, M&E = mix minus dialogue — the classic karaoke-M&E
+for dubbing/relocalization; `dialogue.wav + me.wav` reconstruct the mix
+exactly. `music_split=True` further splits M&E into music and effects.
+Honest note: AI separation is not the original session's stems — always
+check for artifacts before delivery.
 
 ---
 
