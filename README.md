@@ -10,6 +10,10 @@ Chat-driven audio enhancement: talk to your local Claude (Desktop or Claude Code
 about a recording and let the toolkit analyze and improve it. A local A/B viewer
 lets you compare original and result in perfect sync — hearing *and* seeing.
 
+![A/B viewer: a smart_edit session — the intermittent mains hum and AC noise
+are treated only where they occur (INGREPEN lane); everything else stays
+bit-for-bit untouched](docs/img/viewer-hero.png)
+
 ```
 Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP core (pybind11)
                                         │                    gate · compressor · limiter · EQ
