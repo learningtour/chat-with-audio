@@ -308,6 +308,28 @@ def _step_duck_music(x, sr, gap_db: float = 6.0, fade_ms: float = 120.0,
     return y
 
 
+def _step_time_stretch(x, sr, factor: float = 1.0):
+    """Duur x factor (1.25 = 25% langer), toonhoogte blijft staan."""
+    from chat_with_audio.dsp import timepitch
+
+    return timepitch.time_stretch(x, sr, factor)
+
+
+def _step_pitch_shift(x, sr, semitones: float = 0.0, preserve_formants: bool = True):
+    """Toonhoogte +/- semitones, duur exact gelijk; preserve_formants houdt de
+    klankkleur (spectrale envelop) op zijn plek."""
+    from chat_with_audio.dsp import timepitch
+
+    return timepitch.pitch_shift(x, sr, semitones, preserve_formants=preserve_formants)
+
+
+def _step_varispeed(x, sr, factor: float | None = None, semitones: float | None = None):
+    """Tape-stijl: duur én toonhoogte samen (factor = snelheid, of semitones)."""
+    from chat_with_audio.dsp import timepitch
+
+    return timepitch.varispeed(x, sr, factor=factor, semitones=semitones)
+
+
 def _step_gate(x, sr, threshold_db: float, attack_ms: float = 5.0,
                release_ms: float = 120.0, hold_ms: float = 50.0, range_db: float = 12.0):
     return dsp.noise_gate(x, sr, threshold_db, attack_ms, release_ms, hold_ms, range_db)
@@ -384,6 +406,9 @@ STEP_REGISTRY = {
     "breath_control": _step_breath_control,
     "deplosive": _step_deplosive,
     "duck_music": _step_duck_music,
+    "time_stretch": _step_time_stretch,
+    "pitch_shift": _step_pitch_shift,
+    "varispeed": _step_varispeed,
     "gate": _step_gate,
     "compressor": _step_compressor,
     "leveler": _step_leveler,

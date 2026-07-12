@@ -25,6 +25,7 @@ dependencies = [
     "pyloudnorm>=0.1.1",
     "pillow>=10",
     "mcp>=1.2",
+    "python-stretch>=0.3.1",
 ]
 
 [project.optional-dependencies]

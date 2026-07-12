@@ -24,8 +24,8 @@ into an ordered build plan.
 | 5 | Volume & dynamics | ± | Comp/gate/limiter/leveler/loudness ✓, ducking ✓ (2 modes). Gaps: **expander, multiband comp, transient shaper, parallel/upward comp** as chain steps |
 | 6 | EQ & tone | ± | Biquad set ✓, match-EQ ✓, auto-EQ rules ✓. Gaps: **dynamic EQ, mid-side EQ, tilt-EQ step**, formant correction; futz-EQ (telephone/radio) belongs in recipes (phase D) |
 | 7 | Speech & dialogue | ± | De-ess/deplosive/breath ✓, leveling ✓, isolate ✓, word/pause edits ✓ (edit_speech). Gaps: boom-lav auto-mix (aligned sum + spectral match), ADR room-match (needs phase D). — : ADR recording |
-| 8 | Vocal (music) editing | — | Tuning/comping/harmonies = music-production DAW work. Only pitch/formant primitives (phase B) as enablers |
-| 9 | Musical timing & pitch | ✗ | **No time/pitch engine at all.** Phase B: time-stretch, pitch-shift, varispeed, formant-preserve |
+| 8 | Vocal (music) editing | — | Tuning/comping/harmonies = music-production DAW work. Pitch/formant primitives ✓ (phase B) as enablers |
+| 9 | Musical timing & pitch | ± | **Engine ✓ (phase B, Signalsmith Stretch)**: time-stretch, pitch-shift (formant-preserve), varispeed — as chain steps + retime_audio. — : beat-quantize/elastic audio (DAW work) |
 | 10 | Stereo & spatial | ✗ | Gaps (all cheap): to-mono/dual-mono, channel swap/remap, polarity invert, sample delay, M/S width, pseudo-stereo, bass-mono. Meters exist ✓ |
 | 11 | Surround & immersive | ± | 5.1 ✓ (weighted loudness, QC, downmix TP, netflix-5.1). Gaps: 7.1, LtRt downmix render, channel remap. — : Atmos object authoring (Dolby toolchain; ADM recognition ✓) |
 | 12 | Reverb & acoustics | ✗ | **No reverb engine.** Phase D: convolution reverb (IR), room-match for ADR, dereverb ✓ exists |
@@ -44,7 +44,7 @@ into an ordered build plan.
 | 25 | Phase & polarity | ✗ | All cheap (phase C): polarity invert, sample delay, mic-pair alignment (reuse sync refine) |
 | 26 | Noise & silence | ± | Gate ✓, room tone ✓. Gap: scene noise matching (floor match between takes) |
 | 27 | Online video & social | ± | Loudness targets ✓. Gaps: **codec preview** (AAC/MP3 roundtrip + diff report), loopable audio check |
-| 28 | Accessibility & language | ± | Clean dialogue via separation ±, bleep/redact ✓ (edit_speech). Gap: voice anonymize (needs phase B pitch). — : dubbing/AD production |
+| 28 | Accessibility & language | ± | Clean dialogue via separation ±, bleep/redact ✓ (edit_speech), voice anonymize ✓ basic (retime_audio pitch shift zonder formantbehoud). — : dubbing/AD production |
 | 29 | Live production | — | **Out of scope by decision.** Action: ingest this chapter as knowledge (knowledge-ingest MCP, not connected in the build session — do this from a session that has it) |
 | 30 | Conversion & delivery | ± | WAV/FLAC/MP3/AAC/OGG ✓, SRC/bit depth ✓, poly-wav ✓. Gaps (phase E): **BEXT/iXML + timecode metadata, ID3/chapters, AC-3/E-AC-3 via ffmpeg, checksums, delivery package bundler** |
 | 31 | Quality control | ✓ | qc_report/qc_folder cover most; add codec preview + downmix render checks |
@@ -73,11 +73,21 @@ timestamps also exposed via `transcribe_audio(word_timestamps=True)`.
 Not in A: head/tail trim (phase C), noise-floor matching at joints beyond
 room tone (phase D room-match).
 
-**Phase B — Time & pitch engine.**
+**Phase B — Time & pitch engine. ✓ BUILT (July 12, 2026).**
 One good dependency (evaluate: signalsmith-stretch python bindings, else
 librosa/pyrubberband) → chain steps `time_stretch`, `pitch_shift`
 (formant-preserve option), `varispeed`. Unlocks ch. 9 basics, voice
 anonymization, pause lengthening, music shorten/extend approximations.
+*As built:* dependency evaluation won by **python-stretch 0.3.1**
+(Signalsmith Stretch bindings: wheels for macOS x86_64/arm64 + Linux +
+Windows, no extra deps → base dependency, so CI tests it; pyrubberband
+needs an external CLI binary, librosa drags in numba against the numpy<2
+pin). `dsp/timepitch.py` + chain steps `time_stretch` (duration factor),
+`pitch_shift` (formant preservation = 8 kHz tonality limit + cepstral
+envelope re-matching per STFT frame against the original, ±12 dB bounded;
+off = voice anonymization) and `varispeed` (rational resampling, no
+engine) + the `retime_audio` MCP tool (32nd: tempo / target_duration_s /
+pitch_semitones / varispeed).
 
 **Phase C — Cheap utility steps (one batch, many list hits).**
 `trim` (head/tail/to-first-modulation, frame offset, insert silence),

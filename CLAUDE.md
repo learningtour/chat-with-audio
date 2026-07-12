@@ -75,6 +75,12 @@ uv run ait viewer                                 # viewer on :8471
 - `dsp/spectral_repair.py` → spectral painting (`spectral_repair`): magnitudes
   interpoleren uit de context, fase phase-vocoder-coherent voortzetten
   (bin-centerfrequenties laten mainlobe-bins driften — gemeten dphi gebruiken).
+- `dsp/timepitch.py` → time & pitch engine (`retime_audio`-tool + chain steps
+  `time_stretch`/`pitch_shift`/`varispeed`): Signalsmith Stretch
+  (python-stretch, basisdependency; timeFactor >1 = sneller — de steps rekenen
+  in duurfactor). Formantbehoud = tonaliteitslimiet 8 kHz + cepstrale
+  envelop-hermatching per STFT-frame tegen het origineel (±12 dB begrensd);
+  varispeed = rationale resampling (Fraction, geen engine).
 - `duck_music` heeft twee modi: beds (segmentniveau, licht) en stems
   (Demucs-sidechain voor muziek ónder spraak, [stems]-extra).
 - `sync.py` → 32-sporenrecorder (`sync_tracks`): envelope-GCC-PHAT + full-rate
@@ -83,7 +89,7 @@ uv run ait viewer                                 # viewer on :8471
   periodiek materiaal (metronoom) is inherent dubbelzinnig voor correlatie —
   testsignalen moeten aperiodiek gaten (en recorder-seeds ver van event-seeds,
   anders ontstaat een echte schijncorrelatie).
-- `server.py` — 31 MCP tools; `sessions.py` — session folders under
+- `server.py` — 32 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.

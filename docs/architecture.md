@@ -1,13 +1,13 @@
 # Architecture
 
 ```
-Claude (chat) ── MCP (stdio) ──> server.py (31 tools, FastMCP)
+Claude (chat) ── MCP (stdio) ──> server.py (32 tools, FastMCP)
                                      │
              ┌───────────────────────┼────────────────────────┐
              ▼                       ▼                        ▼
         analysis.py             chain.py                sessions.py
         compliance.py           STEP_REGISTRY           timeline/compliance
-        regions.py              21 steps                log.md provenance
+        regions.py              24 steps                log.md provenance
         segments.py                 │                        │
              │                      ▼                        ▼
              │             dsp/  (dispatch)           viewer/ (stdlib http)
@@ -52,7 +52,7 @@ music-bed ducking), `repair.py` (declip/declick), `deess.py`,
 
 ## Execution
 
-`chain.py` holds `STEP_REGISTRY` (21 steps) and `run_chain`, which validates
+`chain.py` holds `STEP_REGISTRY` (24 steps) and `run_chain`, which validates
 *all* steps upfront (`validate_steps`, shared with recipes), executes them,
 and returns the resolved parameters (defaults included) for the session
 record. One failed step never leaves you with a half-written session.

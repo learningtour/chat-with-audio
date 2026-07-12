@@ -58,6 +58,12 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
   redacted with the file's own room tone — every joint crossfaded, the cut
   list on the viewer timeline and exportable as DAW markers. `preview=True`
   shows the plan before anything is rendered.
+- **"Make this exactly 25 minutes" / "a semitone up, keep the voice natural"**
+  — `retime_audio`: time-stretch without touching pitch (to a tempo factor or
+  a target duration), pitch-shift without touching duration (with formant
+  preservation so voices keep their timbre — or without, to anonymize a
+  voice), and tape-style `varispeed`. Signalsmith Stretch under the hood;
+  also available as chain steps for recipes.
 - **"Fix the clips and clicks"** — `repair_audio`: declip (waveform reconstruction)
   and declick; improve_audio applies declip automatically when clipping is detected.
 - **"Make it sound like this reference"** — `match_reference`: 1/3-octave match EQ +
@@ -141,7 +147,7 @@ the tool then falls back to spectral gating automatically.
   Claude Desktop after installing; the tools appear under "chat-with-audio".
 - **Codex CLI/app**: registered as a global MCP server via
   `codex mcp add chat-with-audio -- <uv-path> run --directory <project-folder> chat-with-audio-mcp`
-  (verify with `codex mcp list`). Same 31 tools, same sessions and viewer.
+  (verify with `codex mcp list`). Same 32 tools, same sessions and viewer.
 
 Note: run `uv sync --all-extras` first, otherwise the first server start may
 time out while building/downloading.
@@ -202,7 +208,7 @@ Steps are validated before anything runs.
 | Intelligibility | `asr.py` | Whisper transcription + word retention ([asr] extra) |
 | Dereverberation | `dsp/dereverb.py` | ClearVoice MossFormer2 48 kHz, speech segments only ([enhance] extra) |
 | Chain | `chain.py` | step registry (incl. leveler, smart_denoise), loudness normalization |
-| MCP server | `server.py` | 31 tools over stdio (FastMCP) |
+| MCP server | `server.py` | 32 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B player |
 
 Loudness targets: speech −16 LUFS / TP −1.5 dBTP, music −14 LUFS / TP −1.0 dBTP.

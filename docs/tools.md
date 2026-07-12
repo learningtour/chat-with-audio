@@ -1,6 +1,6 @@
 # Tool reference
 
-All 31 MCP tools, grouped by job. Every processing tool creates a **session**
+All 32 MCP tools, grouped by job. Every processing tool creates a **session**
 (A/B audio, analyses, chain + rationale, timeline, provenance log) and
 returns its `session_id` plus a `viewer_url`. File inputs accept wav, mp3,
 m4a/aac, flac, ogg and aiff; `out_path` exports to the format matching its
@@ -135,6 +135,22 @@ markers (times refer to the original).
 
 ---
 
+## Time & pitch
+
+### `retime_audio(file_path, tempo=1.0, target_duration_s=None, pitch_semitones=0, preserve_formants=True, varispeed=False, out_path=None)`
+Change duration and/or pitch. `tempo` is a speed factor (1.1 = 10% faster
+and shorter); `target_duration_s` computes the tempo for you (*"make this
+exactly 25:00"*). `pitch_semitones` shifts pitch independently of duration;
+`preserve_formants=True` (default) puts the spectral envelope back where it
+was per frame, so a voice keeps its timbre — turn it *off* to anonymize a
+voice. `varispeed=True` couples duration and pitch like a tape machine
+(specify tempo *or* semitones; the other follows). Engine: Signalsmith
+Stretch (bundled base dependency); varispeed is pure rational resampling.
+The same operations are available as chain steps (`time_stretch`,
+`pitch_shift`, `varispeed`) for use inside `apply_chain` and recipes.
+
+---
+
 ## Multitrack (the 32-track recorder)
 
 ### `sync_tracks(file_paths | dir_path, reference=None, correct_drift=False, out_dir=None)`
@@ -243,6 +259,9 @@ step objects live inside recipes. Available types:
 | `breath_control` | dim breaths, don't cut | `reduction_db` (10) |
 | `deplosive` | p/b-pop repair, pop-local | `cutoff_hz` (120), `sensitivity_db` (6) |
 | `duck_music` | music under speech level | `gap_db` (6), `mode`: `beds` (between speech) \| `stems` (sidechain via Demucs, under speech) |
+| `time_stretch` | duration without pitch | `factor` (duration ratio: 1.25 = 25% longer) |
+| `pitch_shift` | pitch without duration | `semitones`, `preserve_formants` (true) |
+| `varispeed` | tape-style speed (pitch follows) | `factor` (speed) or `semitones` |
 | `band_duck` | dynamic low-band taming | `low_hz`, `high_hz`, `max_cut_db` |
 | `pause_duck` | broadcast silence in pauses | `duck_db` (20) |
 | `gate` | noise gate | `threshold_db`, `range_db` |

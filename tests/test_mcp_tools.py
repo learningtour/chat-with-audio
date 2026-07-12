@@ -14,7 +14,7 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "list_recipes", "save_recipe", "apply_recipe",
             "check_compliance", "master_for", "export_markers",
             "fill_room_tone", "qc_report", "spectral_repair", "qc_folder",
-            "sync_tracks", "edit_speech"}
+            "sync_tracks", "edit_speech", "retime_audio"}
 
 
 def test_tool_registry():
@@ -206,6 +206,28 @@ def test_qc_folder_tool(tmp_path, sr, noisy_bursts):
     from pathlib import Path
 
     assert Path(res["export_path"]).read_text() == md
+
+
+def test_retime_audio_tool(noisy_wav):
+    # naar een doelduur: 10 s bron -> 8 s, toonhoogte blijft
+    res = server.retime_audio(str(noisy_wav), target_duration_s=8.0)
+    assert res["chain"][0]["type"] == "time_stretch"
+    assert res["chain"][0]["factor"] == pytest.approx(0.8, abs=0.001)
+    assert res["duration_after_s"] == pytest.approx(8.0, abs=0.2)
+    assert res["duration_before_s"] == pytest.approx(10.0, abs=0.01)
+
+    # varispeed: duur en toonhoogte samen
+    res2 = server.retime_audio(str(noisy_wav), tempo=1.25, varispeed=True)
+    assert res2["chain"][0]["type"] == "varispeed"
+    assert res2["duration_after_s"] == pytest.approx(8.0, abs=0.2)
+
+    with pytest.raises(ValueError, match="tempo"):
+        server.retime_audio(str(noisy_wav), target_duration_s=1.0)
+    with pytest.raises(ValueError, match="Niets te doen"):
+        server.retime_audio(str(noisy_wav))
+    with pytest.raises(ValueError, match="varispeed"):
+        server.retime_audio(str(noisy_wav), tempo=1.2, pitch_semitones=2,
+                            varispeed=True)
 
 
 def _speech_wav(tmp_path, sr, words, dur_s=8.0):

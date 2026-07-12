@@ -232,6 +232,13 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None,
       {"type": "duck_music", "gap_db": 6, "mode": "beds"|"stems"}
         (beds = muziekbedden tussen de spraak omlaag; stems = echte
          sidechain-ducking voor muziek ónder spraak via Demucs, [stems]-extra)
+      {"type": "time_stretch", "factor": 1.25}
+        (duur x factor — 1.25 = 25% langer — zonder de toonhoogte te raken)
+      {"type": "pitch_shift", "semitones": -2, "preserve_formants": true}
+        (toonhoogte zonder de duur te raken; preserve_formants houdt de
+         klankkleur/formanten op hun plek — uit = stem-anonimisering)
+      {"type": "varispeed", "factor": 1.06}
+        (tape-stijl: duur en toonhoogte samen; ook {"semitones": 1})
 
     Tip: sluit af met een limiter of loudness_normalize als eerdere stappen het
     niveau verhogen.
@@ -294,6 +301,81 @@ def refine_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: flo
     if out_path:
         wav = sessions.session_path(session["session_id"]) / "processed.wav"
         result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
+def retime_audio(file_path: str, tempo: float = 1.0,
+                 target_duration_s: float | None = None,
+                 pitch_semitones: float = 0.0, preserve_formants: bool = True,
+                 varispeed: bool = False, out_path: str | None = None,
+                 user_request: str = "") -> dict:
+    """Verander duur en/of toonhoogte ("maak dit 10% korter", "halve toon omhoog").
+
+    tempo is de snelheidsfactor (1.1 = 10% sneller/korter, 0.9 = langzamer);
+    target_duration_s rekent het tempo zelf uit ("maak hier precies 25:00
+    van"). pitch_semitones verschuift de toonhoogte los van de duur;
+    preserve_formants houdt de klankkleur (formanten) op zijn plek zodat een
+    stem geen cartoon wordt — zet het uit om een stem te anonimiseren.
+    varispeed=True koppelt duur en toonhoogte zoals een tapemachine (geef
+    tempo óf pitch_semitones; het ander volgt vanzelf). Engine: Signalsmith
+    Stretch; varispeed is pure resampling.
+    """
+    from chat_with_audio.dsp import timepitch
+    from chat_with_audio.regions import fmt_ts
+
+    x, sr = io.load_audio(file_path)
+    dur = x.shape[1] / sr
+    if target_duration_s is not None:
+        if target_duration_s <= 0:
+            raise ValueError("target_duration_s moet positief zijn.")
+        tempo = dur / float(target_duration_s)
+    lo, hi = timepitch.STRETCH_RANGE
+    if not (lo <= tempo <= hi):
+        raise ValueError(f"tempo {tempo:.3f} valt buiten {lo}-{hi} (bij een "
+                         "target_duration_s: het doel ligt te ver van de "
+                         "huidige duur).")
+
+    steps: list[dict] = []
+    rationale: list[str] = []
+    if varispeed:
+        if pitch_semitones and tempo != 1.0:
+            raise ValueError("varispeed koppelt duur en toonhoogte: geef tempo "
+                             "óf pitch_semitones, niet allebei.")
+        if pitch_semitones:
+            steps.append({"type": "varispeed", "semitones": pitch_semitones})
+            rationale.append(f"Varispeed (tape): {pitch_semitones:+.1f} halve "
+                             "tonen — de duur volgt de toonhoogte.")
+        elif tempo != 1.0:
+            steps.append({"type": "varispeed", "factor": tempo})
+            rationale.append(f"Varispeed (tape): {tempo:.3f}x snelheid — de "
+                             "toonhoogte volgt de snelheid "
+                             f"({12 * np.log2(tempo):+.1f} halve tonen).")
+    else:
+        if tempo != 1.0:
+            steps.append({"type": "time_stretch", "factor": round(1.0 / tempo, 4)})
+            rationale.append(f"Time-stretch naar {1 / tempo:.3f}x de duur "
+                             f"({fmt_ts(dur)} -> {fmt_ts(dur / tempo)}), "
+                             "toonhoogte onaangetast (Signalsmith Stretch).")
+        if pitch_semitones:
+            steps.append({"type": "pitch_shift", "semitones": pitch_semitones,
+                          "preserve_formants": preserve_formants})
+            rationale.append(f"Pitch-shift {pitch_semitones:+.1f} halve tonen, "
+                             "duur onaangetast; "
+                             + ("formanten (klankkleur) blijven op hun plek."
+                                if preserve_formants else
+                                "zónder formantbehoud — de klankkleur schuift "
+                                "mee (stem-anonimisering)."))
+    if not steps:
+        raise ValueError("Niets te doen: tempo is 1.0 en pitch_semitones is 0. "
+                         "Geef tempo, target_duration_s of pitch_semitones op.")
+
+    result = _process(file_path, steps, rationale, out_path=out_path,
+                      user_request=user_request or None)
+    result["duration_before_s"] = result["metrics_before"]["duration_s"]
+    result["duration_after_s"] = result["metrics_after"]["duration_s"]
+    if target_duration_s is not None:
+        result["target_duration_s"] = float(target_duration_s)
     return result
 
 
