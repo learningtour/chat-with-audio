@@ -35,6 +35,8 @@ SPECS: dict[str, dict] = {
         "gating": "dialogue",
         "loudness": {"target": -27.0, "tol": 2.0},
         "true_peak_max": -2.0,
+        # Netflix-leveringsspec: 48 kHz / 24-bit PCM wav
+        "format": {"sample_rate": 48000, "min_bit_depth": 24, "pcm": True},
     },
     "apple-podcast": {
         "name": "Apple Podcasts",
@@ -92,14 +94,47 @@ def _check(name: str, measured, requirement: str, passed: bool | None,
             "passed": passed, "advisory": advisory, **({"hint": hint} if hint else {})}
 
 
-def check(metrics: dict, spec_id: str, dialogue_lufs: float | None = None) -> dict:
+def check(metrics: dict, spec_id: str, dialogue_lufs: float | None = None,
+          file_info: dict | None = None) -> dict:
     """Pass/fail-rapport van metrics tegen één spec. dialogue_lufs is vereist
-    voor dialogue-gated specs (via dialogue_loudness)."""
+    voor dialogue-gated specs (via dialogue_loudness); file_info (io.probe)
+    maakt de leveringsformaat-checks mogelijk voor specs die een formaat
+    voorschrijven (Netflix: 48 kHz / 24-bit PCM)."""
     spec = SPECS.get(spec_id)
     if spec is None:
         raise ValueError(f"Onbekende spec '{spec_id}'. "
                          f"Beschikbaar: {', '.join(sorted(SPECS))}")
     checks: list[dict] = []
+
+    fmt = spec.get("format")
+    if fmt:
+        sr_req = fmt.get("sample_rate")
+        sr_meas = (file_info or {}).get("sample_rate") or metrics.get("sample_rate")
+        if sr_req:
+            checks.append(_check("Sample rate", sr_meas, f"{sr_req} Hz",
+                                 sr_meas == sr_req,
+                                 hint="" if sr_meas == sr_req else
+                                 f"master_for(..., sample_rate={sr_req}) levert "
+                                 "met sample-rate-conversie"))
+        if fmt.get("min_bit_depth"):
+            bits = (file_info or {}).get("bit_depth")
+            subtype = (file_info or {}).get("subtype")
+            pcm_ok = bool(subtype) and (subtype.startswith("PCM")
+                                        or subtype in ("FLOAT", "DOUBLE"))
+            if bits is None:
+                checks.append(_check(
+                    "Leveringsformaat", (file_info or {}).get("codec") or "onbekend",
+                    f"PCM wav, >= {fmt['min_bit_depth']}-bit",
+                    False,
+                    hint="lossy/onbekend bronformaat: exporteer als wav via "
+                         f"master_for(..., bit_depth={fmt['min_bit_depth']})"))
+            else:
+                ok = bits >= fmt["min_bit_depth"] and (pcm_ok or not fmt.get("pcm"))
+                checks.append(_check(
+                    "Leveringsformaat", f"{subtype} ({bits}-bit)",
+                    f"PCM wav, >= {fmt['min_bit_depth']}-bit", ok,
+                    hint="" if ok else
+                    f"master_for(..., bit_depth={fmt['min_bit_depth']})"))
 
     loud = spec.get("loudness")
     if loud:
@@ -112,6 +147,7 @@ def check(metrics: dict, spec_id: str, dialogue_lufs: float | None = None) -> di
             measured = metrics.get("lufs_integrated")
             label = "Integrated loudness"
             miss_hint = "bestand te kort/stil voor een loudness-meting"
+        measured = round(measured, 2) if measured is not None else None
         lo = loud["target"] - loud["tol"]
         hi = loud["target"] + loud["tol"]
         ok = measured is not None and lo <= measured <= hi

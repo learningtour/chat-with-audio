@@ -131,7 +131,10 @@ Master to a delivery spec and re-verify: loudness to target (dialogue-gated
 specs steer on the detected speech), true-peak limiting under the spec
 ceiling, then a fresh compliance check — the report lands in the session and
 the viewer. `out_path` + `sample_rate=48000` + `bit_depth=24` produces a
-broadcast delivery file (high-quality polyphase SRC).
+broadcast delivery file (high-quality polyphase SRC). Specs with a format
+requirement fill those in automatically: *"master this for Netflix as
+delivery.wav"* comes out dialogue-gated at −27 LKFS, TP ≤ −2 dBTP, 48 kHz /
+24-bit PCM — and the re-check is run on the actual delivery file.
 
 ### `export_markers(session_id, out_dir=None, include_segments=False)`
 The AI region map as DAW markers: Adobe Audition marker CSV, an Audacity

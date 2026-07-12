@@ -126,8 +126,21 @@ def encode_wav_to(wav_path: str | Path, out_path: str | Path) -> Path:
     return out_path
 
 
+_SUBTYPE_BITS = {"PCM_16": 16, "PCM_24": 24, "PCM_32": 32, "FLOAT": 32, "DOUBLE": 64}
+
+
+def _sf_details(path: Path) -> dict:
+    """Subtype/bit depth via soundfile (alleen voor formaten die sf leest)."""
+    try:
+        i = sf.info(str(path))
+        return {"subtype": i.subtype, "bit_depth": _SUBTYPE_BITS.get(i.subtype)}
+    except Exception:
+        return {"subtype": None, "bit_depth": None}
+
+
 def probe(path: str | Path) -> dict:
-    """Containerinfo (formaat, codec, duur, bitrate) via ffprobe; sf.info als vangnet."""
+    """Containerinfo (formaat, codec, sample rate, bit depth) via ffprobe;
+    sf.info als vangnet en voor subtype/bit depth."""
     path = Path(path).expanduser()
     try:
         proc = _run([_tool("ffprobe"), "-v", "error", "-print_format", "json",
@@ -142,11 +155,13 @@ def probe(path: str | Path) -> dict:
             "channels": int(audio.get("channels", 0) or 0),
             "duration_s": round(float(fmt.get("duration", 0) or 0), 2),
             "bit_rate": int(fmt.get("bit_rate", 0) or 0),
+            **_sf_details(path),
         }
     except Exception:
         try:
             i = sf.info(str(path))
             return {"format": i.format, "codec": i.subtype, "sample_rate": i.samplerate,
-                    "channels": i.channels, "duration_s": round(i.duration, 2), "bit_rate": 0}
+                    "channels": i.channels, "duration_s": round(i.duration, 2),
+                    "bit_rate": 0, **_sf_details(path)}
         except Exception:
             return {}

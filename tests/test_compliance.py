@@ -89,6 +89,53 @@ def test_master_for_acx_and_delivery_export(sr, noisy_wav, tmp_path):
     assert res["export"]["sample_rate"] == 48000
 
 
+def test_netflix_format_checks(sr, tmp_path):
+    """Netflix eist 48 kHz/24-bit PCM: een 44.1k/16-bit bron faalt op formaat."""
+    x = _speechy(sr, 10, amp_db=-28.0).astype(np.float32)
+    p = tmp_path / "bron_44k1_16bit.wav"
+    sf.write(str(p), x, sr, subtype="PCM_16")
+    rep = server.check_compliance(str(p), spec="netflix-2.0")
+    names = {c["name"]: c for c in rep["checks"]}
+    assert not names["Sample rate"]["passed"]
+    assert not names["Leveringsformaat"]["passed"]
+    assert "48000" in names["Sample rate"]["hint"]
+    # EBU heeft geen formaateis: geen formaatchecks in dat rapport
+    rep2 = server.check_compliance(str(p), spec="ebu-r128")
+    assert "Sample rate" not in {c["name"] for c in rep2["checks"]}
+
+
+def test_master_for_netflix_delivers_spec_format(sr, tmp_path):
+    """master_for(netflix) zonder expliciet formaat levert 48 kHz/24-bit en
+    keurt het échte leveringsbestand goed."""
+    x = _speechy(sr, 12, amp_db=-24.0).astype(np.float32)
+    p = tmp_path / "dialoog.wav"
+    sf.write(str(p), x, sr)
+    out = tmp_path / "netflix_master.wav"
+    res = server.master_for(str(p), spec="netflix-2.0", out_path=str(out))
+    rep = res["compliance"]
+    assert rep["passed"], rep["failed_checks"]
+    names = {c["name"]: c for c in rep["checks"]}
+    assert names["Sample rate"]["passed"]
+    assert names["Leveringsformaat"]["passed"]
+    loud = names["Dialogue-gated loudness"]
+    assert abs(loud["measured"] - (-27.0)) <= 2.0
+    info = sf.info(str(out))
+    assert info.samplerate == 48000
+    assert info.subtype == "PCM_24"
+    assert res["export"]["sample_rate"] == 48000
+
+
+def test_master_for_netflix_without_export_hints_at_format(sr, tmp_path):
+    x = _speechy(sr, 10, amp_db=-24.0).astype(np.float32)
+    p = tmp_path / "dialoog.wav"
+    sf.write(str(p), x, sr)
+    res = server.master_for(str(p), spec="netflix-2.0")
+    rep = res["compliance"]
+    # loudness klopt, maar het 44.1k-sessiebestand is nog geen leveringsformaat
+    assert "Sample rate" in rep["failed_checks"]
+    assert any("out_path" in r for r in res["rationale"])
+
+
 def test_check_compliance_tool_reports_specs(noisy_wav):
     rep = server.check_compliance(str(noisy_wav), spec="apple-podcast")
     assert rep["spec"] == "apple-podcast"

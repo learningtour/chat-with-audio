@@ -610,7 +610,7 @@ def check_compliance(file_path: str, spec: str = "ebu-r128") -> dict:
         from chat_with_audio.segments import classify_segments
 
         dlg = comp.dialogue_loudness(x, sr, classify_segments(x, sr))
-    report = comp.check(m, spec, dialogue_lufs=dlg)
+    report = comp.check(m, spec, dialogue_lufs=dlg, file_info=io.probe(file_path))
     report["file"] = str(Path(file_path).expanduser())
     report["available_specs"] = comp.list_specs()
     if not report["passed"]:
@@ -678,11 +678,46 @@ def master_for(file_path: str, spec: str = "ebu-r128", out_path: str | None = No
     m1 = analysis.analyze(y, sr)
     dlg1 = (comp.dialogue_loudness(y, sr, classify_segments(y, sr))
             if spec_def.get("gating") == "dialogue" else None)
-    report_after = comp.check(m1, spec, dialogue_lufs=dlg1)
+
+    # levering: specs met een formaateis (Netflix: 48 kHz/24-bit) vullen de
+    # exportdefaults zelf in; de eindcheck keurt het échte leveringsbestand
+    fmt = spec_def.get("format") or {}
+    export = None
+    export_info = None
+    if out_path:
+        if sample_rate is None:
+            sample_rate = fmt.get("sample_rate")
+        if bit_depth is None:
+            bit_depth = fmt.get("min_bit_depth")
+        y_out, sr_out = (io.resample(y, sr, sample_rate) if sample_rate else (y, sr))
+        out = Path(out_path).expanduser()
+        subtype = io.BIT_DEPTH_SUBTYPES.get(bit_depth or 24, "PCM_24")
+        if out.suffix.lower() in ("", ".wav"):
+            export = io.save_wav(out if out.suffix else out.with_suffix(".wav"),
+                                 y_out, sr_out, subtype=subtype)
+        else:
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as td:
+                tmp = Path(td) / "master.wav"
+                io.save_wav(tmp, y_out, sr_out, subtype=subtype)
+                export = io.encode_wav_to(tmp, out)
+        export_info = io.probe(export)
+    elif fmt:
+        # geen leveringsbestand: keur de sessie-wav (PCM_24 op bron-sample-rate)
+        export_info = {"sample_rate": sr, "subtype": "PCM_24", "bit_depth": 24,
+                       "codec": "pcm_s24le"}
+
+    report_after = comp.check(m1, spec, dialogue_lufs=dlg1, file_info=export_info)
     rationale.append("Eindcontrole: " + ("GESLAAGD voor " if report_after["passed"]
                      else "nog NIET geslaagd voor ") + spec_def["name"] +
                      ("" if report_after["passed"] else
                       f" (open: {', '.join(report_after['failed_checks'])})"))
+    if fmt and not out_path and not report_after["passed"] \
+            and "Sample rate" in report_after["failed_checks"]:
+        rationale.append("Tip: geef out_path op — de export krijgt dan automatisch "
+                         f"het spec-formaat ({fmt.get('sample_rate')} Hz / "
+                         f"{fmt.get('min_bit_depth')}-bit).")
 
     session = sessions.create_session(
         file_path, x, sr, m0, y, m1, resolved, rationale, None,
@@ -703,22 +738,11 @@ def master_for(file_path: str, spec: str = "ebu-r128", out_path: str | None = No
         "rationale": rationale,
         "deltas": session["deltas"],
     }
-    if out_path:
-        y_out, sr_out = (io.resample(y, sr, sample_rate) if sample_rate else (y, sr))
-        out = Path(out_path).expanduser()
-        subtype = io.BIT_DEPTH_SUBTYPES.get(bit_depth or 24, "PCM_24")
-        if out.suffix.lower() in ("", ".wav"):
-            export = io.save_wav(out if out.suffix else out.with_suffix(".wav"),
-                                 y_out, sr_out, subtype=subtype)
-        else:
-            import tempfile
-
-            with tempfile.TemporaryDirectory() as td:
-                tmp = Path(td) / "master.wav"
-                io.save_wav(tmp, y_out, sr_out, subtype=subtype)
-                export = io.encode_wav_to(tmp, out)
-        result["export"] = {"path": str(export), "sample_rate": sr_out,
-                            "bit_depth": bit_depth or 24}
+    if export is not None:
+        result["export"] = {"path": str(export),
+                            "sample_rate": (export_info or {}).get("sample_rate"),
+                            "bit_depth": (export_info or {}).get("bit_depth")
+                            or bit_depth or 24}
     return result
 
 
@@ -1126,6 +1150,7 @@ def qc_report(file_path: str, spec: str | None = None,
     x, sr = io.load_audio(file_path)
     m = analysis.analyze(x, sr)
     scores, issues = analysis.score_and_issues(m)
+    container = io.probe(file_path)
     report = None
     if spec:
         dlg = None
@@ -1133,9 +1158,9 @@ def qc_report(file_path: str, spec: str | None = None,
             from chat_with_audio.segments import classify_segments
 
             dlg = comp.dialogue_loudness(x, sr, classify_segments(x, sr))
-        report = comp.check(m, spec, dialogue_lufs=dlg)
+        report = comp.check(m, spec, dialogue_lufs=dlg, file_info=container)
     sheet = qcsheet.build_qc_sheet(str(Path(file_path).expanduser()),
-                                   io.probe(file_path), m, scores, issues,
+                                   container, m, scores, issues,
                                    compliance_report=report)
     session = sessions.create_session(file_path, x, sr, m,
                                       label=f"{Path(file_path).name} — QC")
@@ -1193,7 +1218,8 @@ def qc_folder(dir_path: str, spec: str | None = None,
                     from chat_with_audio.segments import classify_segments
 
                     dlg = comp.dialogue_loudness(x, sr, classify_segments(x, sr))
-                rep = comp.check(m, spec, dialogue_lufs=dlg)
+                rep = comp.check(m, spec, dialogue_lufs=dlg,
+                                 file_info=io.probe(p))
             high = [i for i in issues if i["severity"] == "high"]
             rows.append({
                 "file": p.name,

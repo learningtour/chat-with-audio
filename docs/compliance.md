@@ -11,7 +11,7 @@ session and rendered as the *Aflever-check* panel in the viewer.
 |---|---|---|---|---|
 | `ebu-r128` | European broadcast | −23 LUFS ±0.5 (integrated) | ≤ −1 dBTP | LRA ≤ 20 LU (advisory) |
 | `atsc-a85` | US television | −24 LKFS ±2 (integrated) | ≤ −2 dBTP | |
-| `netflix-2.0` | Netflix-style non-theatrical 2.0 | −27 LKFS ±2 (**dialogue-gated**) | ≤ −2 dBTP | |
+| `netflix-2.0` | Netflix-style non-theatrical 2.0 | −27 LKFS ±2 (**dialogue-gated**) | ≤ −2 dBTP | delivery format: 48 kHz / ≥24-bit PCM WAV |
 | `apple-podcast` | Apple Podcasts | −16 LUFS ±1 | ≤ −1 dBTP | |
 | `spotify` | Spotify normalization target | −14 LUFS ±1 | ≤ −1 dBTP | |
 | `youtube` | YouTube normalization target | −14 LUFS ±1 | ≤ −1 dBTP | |
@@ -69,3 +69,23 @@ high-quality polyphase sample-rate conversion.
 
 The result includes the fresh compliance report; if a technical gate still
 fails (say, dropouts in the source), the report names the tool that fixes it.
+
+## Format requirements (Netflix)
+
+Specs that prescribe a delivery *format* — Netflix wants 48 kHz / ≥24-bit
+PCM WAV — get two extra normative checks: **Sample rate** and
+**Leveringsformaat** (codec + bit depth, read from the actual file).
+`check_compliance` verifies the file you point it at; `master_for` verifies
+the actual delivery file it wrote — and when you give it an `out_path`
+without explicit `sample_rate`/`bit_depth`, it fills in the spec's format
+automatically:
+
+```text
+"Master this for Netflix as delivery.wav"
+→ master_for(file, spec="netflix-2.0", out_path="delivery.wav")
+   # → dialogue-gated to −27 LKFS, TP-limited ≤ −2 dBTP,
+   #   exported at 48 kHz / 24-bit PCM, then re-checked — all criteria
+```
+
+Without an `out_path` the report honestly flags the source sample rate as
+non-compliant and tells you the one argument that fixes it.
