@@ -31,7 +31,10 @@ const METRIC_LABELS = {
 
 const SEG_LABELS = { speech: "spraak", music: "muziek", silence: "stilte" };
 const REG_LABELS = { hum: "netbrom", noise: "ruis", clip: "clipping",
-                     boom: "dreun", repair: "painting", track: "spoor" };
+                     boom: "dreun", repair: "painting", track: "spoor",
+                     filler: "vulwoord", repeat: "herhaling", pause: "pauze",
+                     text: "tekst weg", unselected: "buiten selectie",
+                     bleep: "bleep" };
 
 // ---- sessielijst ----
 function splitLabel(label) {

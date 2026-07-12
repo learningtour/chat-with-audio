@@ -12,14 +12,19 @@ before moving on.
    balance.
 2. *"Fix it only where something is wrong"* — `smart_edit` removes the AC
    noise that starts halfway, the fridge hum in the intro, nothing else.
-3. *"Apply my podcast preset"* — `apply_recipe("podcast-speech")`: the calm
+3. *"Haal de uhs eruit en maak de pauzes strakker"* — `edit_speech`: filler
+   words and false starts cut, pauses longer than 1.5 s tightened to 0.6 s,
+   every joint crossfaded. Want to see the plan first? Ask for a preview
+   (`preview=True`) and approve before rendering. Need a name redacted?
+   *"bleep every mention of X"* (`bleep_text`).
+4. *"Apply my podcast preset"* — `apply_recipe("podcast-speech")`: the calm
    speech chain (highpass, de-esser, leveler, light compression, −16 LUFS).
-4. *"Check it for Apple Podcasts"* — `check_compliance(spec="apple-podcast")`
+5. *"Check it for Apple Podcasts"* — `check_compliance(spec="apple-podcast")`
    → pass/fail per criterion.
-5. *"Export as mp3"* — done.
+6. *"Export as mp3"* — done.
 
 First episode sounded right? *"Save this as my show preset"* — every next
-episode is step 3 with your own recipe.
+episode is step 4 with your own recipe.
 
 ## Broadcast delivery (EBU R128)
 

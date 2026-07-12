@@ -41,9 +41,8 @@ def _model(size: str):
     return _MODELS[size]
 
 
-def transcribe(x: np.ndarray, sr: int, model_size: str = "small",
-               language: str = "nl") -> dict:
-    """Transcribeer (channels, n) audio; geeft tekst + segmenten met zekerheid."""
+def _prep(x: np.ndarray, sr: int) -> np.ndarray:
+    """(channels, n) audio -> mono 16 kHz float32 in [-1, 1] voor Whisper."""
     x2 = x[None, :] if x.ndim == 1 else x
     mono = x2.mean(axis=0).astype(np.float64)
     if sr != 16000:
@@ -52,8 +51,13 @@ def transcribe(x: np.ndarray, sr: int, model_size: str = "small",
     peak = np.abs(mono).max()
     if peak > 1.0:  # 32-bit float headroom: Whisper verwacht [-1, 1]
         mono = mono / peak * 0.9
-    result = _model(model_size).transcribe(mono.astype(np.float32),
-                                           language=language, fp16=False)
+    return mono.astype(np.float32)
+
+
+def transcribe(x: np.ndarray, sr: int, model_size: str = "small",
+               language: str = "nl") -> dict:
+    """Transcribeer (channels, n) audio; geeft tekst + segmenten met zekerheid."""
+    result = _model(model_size).transcribe(_prep(x, sr), language=language, fp16=False)
     return {
         "text": result["text"].strip(),
         "language": result.get("language", language),
@@ -65,6 +69,22 @@ def transcribe(x: np.ndarray, sr: int, model_size: str = "small",
             "no_speech_prob": round(float(s["no_speech_prob"]), 3),
         } for s in result["segments"]],
     }
+
+
+def transcribe_words(x: np.ndarray, sr: int, model_size: str = "small",
+                     language: str = "nl") -> dict:
+    """Transcriptie met woord-timestamps — de basis voor tekstgestuurd knippen
+    (textedit.plan_edits / de edit_speech-tool)."""
+    result = _model(model_size).transcribe(_prep(x, sr), language=language,
+                                           fp16=False, word_timestamps=True)
+    words = [{"word": str(w["word"]).strip(),
+              "start": round(float(w["start"]), 3),
+              "end": round(float(w["end"]), 3),
+              "probability": round(float(w.get("probability", 0.0)), 3)}
+             for s in result["segments"] for w in (s.get("words") or [])]
+    return {"text": result["text"].strip(),
+            "language": result.get("language", language),
+            "words": words}
 
 
 def _words(text: str) -> list[str]:

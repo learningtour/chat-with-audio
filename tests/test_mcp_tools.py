@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 from chat_with_audio import server
 
 EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudness",
@@ -12,7 +14,7 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "list_recipes", "save_recipe", "apply_recipe",
             "check_compliance", "master_for", "export_markers",
             "fill_room_tone", "qc_report", "spectral_repair", "qc_folder",
-            "sync_tracks"}
+            "sync_tracks", "edit_speech"}
 
 
 def test_tool_registry():
@@ -204,6 +206,87 @@ def test_qc_folder_tool(tmp_path, sr, noisy_bursts):
     from pathlib import Path
 
     assert Path(res["export_path"]).read_text() == md
+
+
+def _speech_wav(tmp_path, sr, words, dur_s=8.0):
+    """Toonstoten op de woordposities + zachte ruisvloer: 'spraak' voor de test."""
+    import numpy as np
+    import soundfile as sf
+
+    rng = np.random.default_rng(7)
+    t = np.arange(int(sr * dur_s)) / sr
+    x = rng.normal(0, 10 ** (-60 / 20), t.size)
+    for w in words:
+        a, b = int(w["start"] * sr), int(w["end"] * sr)
+        x[a:b] += 0.1 * np.sin(2 * np.pi * 300 * t[a:b])
+    p = tmp_path / "spraak.wav"
+    sf.write(str(p), x.astype(np.float32), sr)
+    return p
+
+
+def test_edit_speech_tool(tmp_path, sr, monkeypatch):
+    from chat_with_audio import asr
+
+    words = [
+        {"word": "Dit", "start": 0.5, "end": 0.8, "probability": 0.95},
+        {"word": "eh", "start": 1.1, "end": 1.4, "probability": 0.5},
+        {"word": "is", "start": 1.7, "end": 1.9, "probability": 0.95},
+        {"word": "geheim.", "start": 2.1, "end": 2.6, "probability": 0.9},
+        {"word": "Klaar.", "start": 6.5, "end": 6.9, "probability": 0.9},
+    ]
+    p = _speech_wav(tmp_path, sr, words)
+    monkeypatch.setattr(asr, "is_available", lambda: True)
+    monkeypatch.setattr(asr, "transcribe_words", lambda *a, **k: {
+        "text": "Dit eh is geheim. Klaar.", "language": "nl", "words": words})
+
+    prev = server.edit_speech(str(p), max_pause_s=1.0, target_pause_s=0.4,
+                              bleep_text=["geheim"], preview=True)
+    assert prev["preview"] is True and "session_id" not in prev
+    assert {"filler", "pause", "bleep"} <= {e["kind"] for e in prev["edits"]}
+
+    res = server.edit_speech(str(p), max_pause_s=1.0, target_pause_s=0.4,
+                             bleep_text=["geheim"], user_request="strakker graag")
+    assert {"filler", "pause", "bleep"} <= set(res["counts"])
+    # vulwoord ~0.6 s + pauze 3.9 s -> 0.4 s: ruim 3.5 s korter
+    assert 3.0 < res["duration_after_s"] < 4.7
+    assert res["removed_s"] == pytest.approx(
+        res["duration_before_s"] - res["duration_after_s"], abs=0.01)
+    assert "eh" not in res["transcript_after"].split()
+    for e in res["edits"]:
+        assert "edited_start_s" in e
+
+    detail = server.list_sessions(session_id=res["session_id"])
+    assert detail["chain"]["steps"][0]["type"] == "edit_speech"
+    assert len(detail["timeline"]["regions"]) == len(res["edits"])
+    markers = server.export_markers(res["session_id"])
+    assert markers["count"] == len(res["edits"])
+
+    with pytest.raises(ValueError, match="tekstgestuurde"):
+        server.save_recipe("mag-niet", session_id=res["session_id"])
+
+
+def test_edit_speech_needs_whisper_and_valid_mode(noisy_wav, monkeypatch):
+    from chat_with_audio import asr
+
+    monkeypatch.setattr(asr, "is_available", lambda: False)
+    with pytest.raises(RuntimeError, match="Whisper"):
+        server.edit_speech(str(noisy_wav))
+    monkeypatch.setattr(asr, "is_available", lambda: True)
+    with pytest.raises(ValueError, match="bleep_mode"):
+        server.edit_speech(str(noisy_wav), bleep_mode="fluit")
+
+
+def test_edit_speech_nothing_to_do(tmp_path, sr, monkeypatch):
+    from chat_with_audio import asr
+
+    words = [{"word": "alles", "start": 0.5, "end": 0.9, "probability": 0.9},
+             {"word": "prima", "start": 1.1, "end": 1.5, "probability": 0.9}]
+    p = _speech_wav(tmp_path, sr, words, dur_s=2.5)
+    monkeypatch.setattr(asr, "is_available", lambda: True)
+    monkeypatch.setattr(asr, "transcribe_words", lambda *a, **k: {
+        "text": "Alles prima.", "language": "nl", "words": words})
+    res = server.edit_speech(str(p))
+    assert res["edits"] == [] and "message" in res
 
 
 def test_smart_edit_clean_file_does_nothing(tmp_path, sr):

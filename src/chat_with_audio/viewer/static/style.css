@@ -100,6 +100,12 @@ canvas { width: 100%; display: block; background: var(--panel2); border-radius: 
 .reg-boom { background: var(--reg-boom); border-radius: 3px; }
 .reg-repair { background: #b58ee0; border-radius: 3px; }
 .reg-track { background: #7fb069; border-radius: 3px; }
+.reg-filler { background: #e0b84e; border-radius: 3px; }
+.reg-repeat { background: #d9915e; border-radius: 3px; }
+.reg-pause { background: #6b7686; border-radius: 3px; }
+.reg-text { background: #e07070; border-radius: 3px; }
+.reg-unselected { background: #4a5160; border-radius: 3px; }
+.reg-bleep { background: #d566c8; border-radius: 3px; }
 #tl-tracks .tl-row { margin-bottom: 2px; }
 #tl-tracks .tl-lane { height: 11px; }
 #tl-tracks .tl-name { width: 110px; overflow: hidden; text-overflow: ellipsis;

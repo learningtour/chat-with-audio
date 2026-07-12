@@ -590,6 +590,125 @@ def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "au
 
 
 @mcp.tool()
+def edit_speech(file_path: str, remove_fillers: bool = True, remove_repeats: bool = True,
+                extra_fillers: list[str] | None = None,
+                max_pause_s: float | None = 1.5, target_pause_s: float = 0.6,
+                remove_text: list[str] | None = None,
+                keep_text: list[str] | None = None,
+                bleep_text: list[str] | None = None, bleep_mode: str = "tone",
+                language: str = "nl", model_size: str = "small",
+                preview: bool = False, out_path: str | None = None,
+                user_request: str = "") -> dict:
+    """Tekstgestuurde dialoogbewerking: knip de opname via de transcriptie.
+
+    Whisper levert woord-timestamps; daarop wordt een knipplan gemaakt en met
+    korte crossfades op elke las gerenderd:
+      - vulwoorden eruit ("eh", "uhm", ...; extra_fillers vult de lijst aan)
+      - herhaalde woorden en valse starts ("dat dat", "ik heb ik heb")
+      - pauzes langer dan max_pause_s ingekort tot target_pause_s
+        (max_pause_s=0 of null laat pauzes met rust)
+      - remove_text: genoemde passages eruit ("haal die zin eruit");
+        keep_text: alléén de genoemde passages blijven over (quotes trekken)
+      - bleep_text: genoemde woorden onhoorbaar maken zonder de tijdlijn te
+        veranderen; bleep_mode "tone" (1 kHz-piep op spraakniveau) of
+        "silence" (room tone van de opname zelf, of stilte)
+    preview=True geeft alleen het knipplan (tijden + tekst per ingreep) om
+    eerst te overleggen, zonder audio te renderen. De kniplijst staat als
+    regiokaart in de sessie (tijden = origineel-tijdlijn): de viewer toont
+    hem op de tijdlijn en export_markers maakt er DAW-markers van.
+    Vereist het [asr]-extra; language/model_size als bij transcribe_audio.
+    """
+    from chat_with_audio import asr, textedit
+    from chat_with_audio.regions import fmt_ts
+    from chat_with_audio.segments import classify_segments
+
+    if not asr.is_available():
+        raise RuntimeError(asr.INSTALL_HINT)
+    if bleep_mode not in ("tone", "silence"):
+        raise ValueError(f"bleep_mode moet 'tone' of 'silence' zijn (niet '{bleep_mode}').")
+    x, sr = io.load_audio(file_path)
+    dur = x.shape[1] / sr
+    tr = asr.transcribe_words(x, sr, model_size=model_size, language=language)
+    if not tr["words"]:
+        return {"edits": [],
+                "message": "Geen spraak gevonden in dit bestand; niets te bewerken."}
+    plan = textedit.plan_edits(
+        tr["words"], dur, language=tr.get("language") or language,
+        remove_fillers=remove_fillers, remove_repeats=remove_repeats,
+        extra_fillers=extra_fillers, max_pause_s=max_pause_s,
+        target_pause_s=target_pause_s, remove_text=remove_text,
+        keep_text=keep_text, bleep_text=bleep_text)
+    counts: dict[str, int] = {}
+    for e in plan["edits"]:
+        counts[e["kind"]] = counts.get(e["kind"], 0) + 1
+    if not plan["edits"]:
+        return {"edits": [], "transcript": tr["text"], "not_found": plan["not_found"],
+                "message": "Niets gevonden om te knippen (geen vulwoorden, "
+                           "herhalingen, te lange pauzes of tekstmatches)."}
+    if preview:
+        return {"preview": True, "transcript": tr["text"], "edits": plan["edits"],
+                "counts": counts, "not_found": plan["not_found"],
+                "transcript_after": plan["transcript_after"],
+                "hint": "Dit is alleen het knipplan; draai zonder preview om te "
+                        "renderen."}
+
+    m0 = analysis.analyze(x, sr)
+    y, info = textedit.render_edits(x, sr, plan["edits"], bleep_mode=bleep_mode)
+    m1 = analysis.analyze(y, sr)
+
+    summary = ", ".join(f"{v}x {textedit.KIND_LABELS.get(k, k)}"
+                        for k, v in sorted(counts.items()))
+    rationale = [f"Tekstbewerking op de transcriptie ({tr.get('language') or language}, "
+                 f"Whisper {model_size}): {summary}; {info['removed_s']:.1f} s "
+                 f"verwijderd ({fmt_ts(info['duration_before_s'])} -> "
+                 f"{fmt_ts(info['duration_after_s'])}), elke las "
+                 f"{info['crossfade_ms']:.0f} ms crossfade."]
+    for e in info["edits"][:15]:
+        rationale.append(f"{fmt_ts(e['start_s'])}: "
+                         f"{textedit.KIND_LABELS.get(e['kind'], e['kind'])}"
+                         + (f" — “{e['text']}”" if e.get("text") else ""))
+    if len(info["edits"]) > 15:
+        rationale.append(f"... plus {len(info['edits']) - 15} verdere ingrepen "
+                         "(volledige lijst in het resultaat en de regiokaart).")
+    if plan["not_found"]:
+        rationale.append("Niet gevonden in de transcriptie: "
+                         + ", ".join(f"“{t}”" for t in plan["not_found"]) + ".")
+
+    regions = [{"kind": e["kind"],
+                "label": (textedit.KIND_LABELS.get(e["kind"], e["kind"])
+                          + (f": {e['text'][:48]}" if e.get("text") else "")),
+                "start_s": e["start_s"], "end_s": e["end_s"]}
+               for e in info["edits"]]
+    session = sessions.create_session(
+        file_path, x, sr, m0, y, m1,
+        [{"type": "edit_speech", "edits": info["edits"]}], rationale, "speech",
+        label=f"{Path(file_path).name} — tekstbewerking",
+        user_request=user_request or None,
+        timeline={"segments": classify_segments(x, sr), "regions": regions})
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "transcript": tr["text"],
+        "transcript_after": plan["transcript_after"],
+        "edits": info["edits"],
+        "counts": counts,
+        "not_found": plan["not_found"],
+        "duration_before_s": info["duration_before_s"],
+        "duration_after_s": info["duration_after_s"],
+        "removed_s": info["removed_s"],
+        "rationale": rationale,
+        "deltas": session["deltas"],
+        "hint": "A/B in de viewer om de lassen te beoordelen; export_markers zet "
+                "de kniplijst als markers in je DAW (tijden = origineel).",
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def check_compliance(file_path: str, spec: str = "ebu-r128") -> dict:
     """Controleer een bestand tegen een aflever-spec ("is dit broadcast-proof?").
 
@@ -797,6 +916,11 @@ def save_recipe(name: str, session_id: str | None = None,
                              "is aan dít bestand gebonden en niet als recept "
                              "herbruikbaar. smart_edit vindt de regio's per bestand "
                              "opnieuw.")
+        if any(s.get("type") == "edit_speech" for s in chain_steps):
+            raise ValueError("Deze sessie is een tekstgestuurde knipbewerking; die "
+                             "is aan dít bestand gebonden en niet als recept "
+                             "herbruikbaar. edit_speech plant de knips per bestand "
+                             "opnieuw.")
         steps = chain_steps
         if not description:
             rat = (data.get("chain") or {}).get("rationale") or []
@@ -876,11 +1000,14 @@ def optimize_audio(file_path: str, speech_peak_db: float = -6.0, music_gap_db: f
 
 @mcp.tool()
 def transcribe_audio(file_path: str, model_size: str = "small", language: str = "nl",
-                     start_s: float | None = None, end_s: float | None = None) -> dict:
+                     start_s: float | None = None, end_s: float | None = None,
+                     word_timestamps: bool = False) -> dict:
     """Transcribeer (een deel van) een audiobestand met Whisper.
 
     Handig als verstaanbaarheidscheck: transcribeer origineel en bewerking en
-    vergelijk. Vereist het [asr]-extra (uv sync --all-extras). model_size:
+    vergelijk. word_timestamps=True geeft per woord start/eind/zekerheid
+    (tijden in bestandstijd, ook bij start_s) — de basis voor edit_speech.
+    Vereist het [asr]-extra (uv sync --all-extras). model_size:
     tiny|base|small|medium (groter = beter maar trager).
     """
     from chat_with_audio import asr
@@ -890,7 +1017,14 @@ def transcribe_audio(file_path: str, model_size: str = "small", language: str = 
     x, sr = io.load_audio(file_path)
     a = int((start_s or 0) * sr)
     b = int(end_s * sr) if end_s else x.shape[1]
-    return asr.transcribe(x[:, a:b], sr, model_size=model_size, language=language)
+    if not word_timestamps:
+        return asr.transcribe(x[:, a:b], sr, model_size=model_size, language=language)
+    res = asr.transcribe_words(x[:, a:b], sr, model_size=model_size, language=language)
+    if a:  # woordtijden altijd in bestandstijd, ook bij een uitsnede
+        for w in res["words"]:
+            w["start"] = round(w["start"] + a / sr, 3)
+            w["end"] = round(w["end"] + a / sr, 3)
+    return res
 
 
 @mcp.tool()

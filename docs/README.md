@@ -8,7 +8,7 @@ plays every intervention; every operation is a fully documented session.
 | Guide | What it covers |
 |---|---|
 | [Getting started](getting-started.md) | Install, register with Claude/Codex, first session |
-| [Tool reference](tools.md) | All 30 MCP tools: parameters, returns, examples |
+| [Tool reference](tools.md) | All 31 MCP tools: parameters, returns, examples |
 | [Workflows cookbook](workflows.md) | Podcast, broadcast delivery, film dialogue, music, restoration, batch |
 | [Delivery compliance](compliance.md) | EBU R128, ATSC A/85, Netflix, streaming and ACX specs — how checking and mastering work |
 | [Smart regions](smart-regions.md) | How the AI finds problem regions and treats only those |

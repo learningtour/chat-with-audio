@@ -1,6 +1,6 @@
 # Tool reference
 
-All 30 MCP tools, grouped by job. Every processing tool creates a **session**
+All 31 MCP tools, grouped by job. Every processing tool creates a **session**
 (A/B audio, analyses, chain + rationale, timeline, provenance log) and
 returns its `session_id` plus a `viewer_url`. File inputs accept wav, mp3,
 m4a/aac, flac, ogg and aiff; `out_path` exports to the format matching its
@@ -32,9 +32,11 @@ auditory-scale spectrograms of A and B, a difference heat map (red = added,
 blue = removed), and level curves. This is how the assistant *sees* what you
 will hear.
 
-### `transcribe_audio(file_path, model_size="small", language="nl", start_s, end_s)`
+### `transcribe_audio(file_path, model_size="small", language="nl", start_s, end_s, word_timestamps=False)`
 Whisper transcription (requires the `asr` extra). Used standalone or as an
 intelligibility check: transcribe original and processed, compare.
+`word_timestamps=True` returns per-word start/end/confidence (in file time,
+also for excerpts) — the raw material behind `edit_speech`.
 
 ### `qc_report(file_path, spec=None, out_path=None)`
 One readable markdown QC sheet per file — the report a facility wants to see
@@ -109,6 +111,27 @@ tonal content runs straight through the repair. Outside the patch:
 bit-for-bit untouched. Find the spot with `view_audio` (vertical
 streaks/blobs in the spectrogram) or by ear in the viewer. For damage over
 or next to programme — not for conjuring back lost words.
+
+---
+
+## Text-first editing (requires the `asr` extra)
+
+### `edit_speech(file_path, remove_fillers=True, remove_repeats=True, extra_fillers=None, max_pause_s=1.5, target_pause_s=0.6, remove_text=None, keep_text=None, bleep_text=None, bleep_mode="tone", language="nl", model_size="small", preview=False, out_path=None)`
+Edit the recording through its transcript — *"haal de uhs eruit en maak de
+pauzes strakker"*. Whisper word timestamps drive a cut plan: filler words
+("eh", "uhm", …; `extra_fillers` extends the list per language) and repeated
+words / false starts ("dat dat", "ik heb ik heb") are removed, pauses longer
+than `max_pause_s` are tightened to `target_pause_s`, `remove_text` deletes
+named passages, `keep_text` keeps *only* the named passages (pull quotes
+from an interview), and `bleep_text` makes named words unhearable without
+changing the timeline (`tone` = 1 kHz beep at speech level, `silence` = the
+recording's own room tone). Cut windows keep a safety margin from
+neighbouring words and swallow the shorter adjacent pause, so one natural
+pause remains; every joint gets a short raised-cosine crossfade.
+`preview=True` returns just the plan (time + text per edit) to discuss
+before rendering. The cut list lands in the session as a region map: the
+viewer shows it on the timeline and `export_markers` turns it into DAW
+markers (times refer to the original).
 
 ---
 

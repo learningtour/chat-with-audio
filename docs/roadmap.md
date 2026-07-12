@@ -19,11 +19,11 @@ into an ordered build plan.
 |---|---|---|---|
 | 1 | Prep & organisation | ± | SRC/bit depth/format conversion ✓, audio-from-video ✓ (ffmpeg path), tech check ✓ (qc_report/qc_folder). Gaps: batch rename, session archive/consolidate. — : DAW project organisation (tracks, colors, templates, handles) |
 | 2 | Synchronisation | ± | Waveform auto-sync ✓ (32-track, two-pass, drift ✓). Gaps: BWF timecode read/sync, simple shift/offset tool, transient alignment for mic pairs. — : lipsync-to-picture (no video) |
-| 3 | Select & edit | ✗ | The big one: **text-based editing** (Whisper word timestamps → cut list), filler-word removal, pause shortening, silence strip. ✓ already: breath dimming, room-tone insert. — : comping, beat/phrase music edits |
+| 3 | Select & edit | ✓ | **Text-based editing ✓ (phase A, `edit_speech`)**: cut list from word timestamps, filler-word removal, repeats/false starts, pause shortening, delete/keep by transcript text. ✓ already: breath dimming, room-tone insert. Gap: head/tail silence strip (phase C trim). — : comping, beat/phrase music edits |
 | 4 | Repair & restoration | ✓ | Denoise (2 tiers), hum+harmonics, declip/declick, spectral repair, dropouts→room tone, dereverb, de-ess, resonances, DC, source separation. Gaps: noise-profile-from-selection, codec-artifact repair, wow/flutter (archival) |
 | 5 | Volume & dynamics | ± | Comp/gate/limiter/leveler/loudness ✓, ducking ✓ (2 modes). Gaps: **expander, multiband comp, transient shaper, parallel/upward comp** as chain steps |
 | 6 | EQ & tone | ± | Biquad set ✓, match-EQ ✓, auto-EQ rules ✓. Gaps: **dynamic EQ, mid-side EQ, tilt-EQ step**, formant correction; futz-EQ (telephone/radio) belongs in recipes (phase D) |
-| 7 | Speech & dialogue | ± | De-ess/deplosive/breath ✓, leveling ✓, isolate ✓. Gaps: boom-lav auto-mix (aligned sum + spectral match), ADR room-match (needs phase D), **word/pause edits (phase A)**. — : ADR recording |
+| 7 | Speech & dialogue | ± | De-ess/deplosive/breath ✓, leveling ✓, isolate ✓, word/pause edits ✓ (edit_speech). Gaps: boom-lav auto-mix (aligned sum + spectral match), ADR room-match (needs phase D). — : ADR recording |
 | 8 | Vocal (music) editing | — | Tuning/comping/harmonies = music-production DAW work. Only pitch/formant primitives (phase B) as enablers |
 | 9 | Musical timing & pitch | ✗ | **No time/pitch engine at all.** Phase B: time-stretch, pitch-shift, varispeed, formant-preserve |
 | 10 | Stereo & spatial | ✗ | Gaps (all cheap): to-mono/dual-mono, channel swap/remap, polarity invert, sample delay, M/S width, pseudo-stereo, bass-mono. Meters exist ✓ |
@@ -38,21 +38,22 @@ into an ordered build plan.
 | 19 | Music production | — | Except stems ✓, karaoke ✓ |
 | 20 | Mixing | ± | A/B ✓, mono/downmix checks ✓, stems export ✓ (sync/Audition). Gaps: M&E / DME stems (phase F), mix-minus. — : full mixing UX |
 | 21 | Broadcast | ✓ | R128/A85/dialog-gated ✓, compliance report ✓. Cheap adds: OP-59/ARIB specs, **tone & slate / two-pop generator**, head/tail trim to first/last modulation |
-| 22 | Radio & podcast | ± | Podcast recipes ✓, double-ender sync ✓. Gaps (phase A/E): filler words, **bleep/redact**, chapter markers + ID3, silence shortening |
+| 22 | Radio & podcast | ± | Podcast recipes ✓, double-ender sync ✓, filler words ✓, bleep/redact ✓, silence shortening ✓ (edit_speech). Gaps (phase E): chapter markers + ID3 |
 | 23 | Mastering | ± | Loudness/TP ✓, album consistency via match_reference ✓. Gaps: **dither + noise shaping on bit reduction (correctness!)**, M/S. — : DDP/ISRC/vinyl |
 | 24 | Loudness & metering | ✓ | Full set incl. momentary/LRA/TP/correlation/dropouts/hum. Gaps: THD, spectrogram-in-viewer exists ✓ |
 | 25 | Phase & polarity | ✗ | All cheap (phase C): polarity invert, sample delay, mic-pair alignment (reuse sync refine) |
 | 26 | Noise & silence | ± | Gate ✓, room tone ✓. Gap: scene noise matching (floor match between takes) |
 | 27 | Online video & social | ± | Loudness targets ✓. Gaps: **codec preview** (AAC/MP3 roundtrip + diff report), loopable audio check |
-| 28 | Accessibility & language | ± | Clean dialogue via separation ±. Gaps: bleep/redact (phase A), voice anonymize (needs phase B pitch). — : dubbing/AD production |
+| 28 | Accessibility & language | ± | Clean dialogue via separation ±, bleep/redact ✓ (edit_speech). Gap: voice anonymize (needs phase B pitch). — : dubbing/AD production |
 | 29 | Live production | — | **Out of scope by decision.** Action: ingest this chapter as knowledge (knowledge-ingest MCP, not connected in the build session — do this from a session that has it) |
 | 30 | Conversion & delivery | ± | WAV/FLAC/MP3/AAC/OGG ✓, SRC/bit depth ✓, poly-wav ✓. Gaps (phase E): **BEXT/iXML + timecode metadata, ID3/chapters, AC-3/E-AC-3 via ffmpeg, checksums, delivery package bundler** |
 | 31 | Quality control | ✓ | qc_report/qc_folder cover most; add codec preview + downmix render checks |
-| 32 | Automation & workflow | ± | Batch ✓ (improve/qc/sync folders), recipes ✓, transcription ✓. Gaps: text-based editing (phase A), batch rename, session archive. — : AAF/OMF/EDL interchange, watch folders |
+| 32 | Automation & workflow | ± | Batch ✓ (improve/qc/sync folders), recipes ✓, transcription ✓, text-based editing ✓ (edit_speech). Gaps: batch rename, session archive. — : AAF/OMF/EDL interchange, watch folders |
 
 ## The build plan (phases, in order of value)
 
-**Phase A — Text-first dialogue editing (the killer feature).**
+**Phase A — Text-first dialogue editing (the killer feature). ✓ BUILT
+(July 12, 2026).**
 Whisper word-level timestamps → `edit_speech` tool: remove filler words
 ("eh/uh", doubles), shorten pauses to a target, delete/keep spans by
 transcript text, **bleep/redact** named words, export the cut list as
@@ -60,6 +61,17 @@ markers. Crossfades + room-tone fill at every joint (both exist). This
 single phase covers the biggest cluster of Serge's ch. 3/7/22/28 items and
 is pure post-production chat magic: *"haal de uhs eruit en maak de pauzes
 strakker"*.
+*As built:* `textedit.py` (pure `plan_edits` + `render_edits`, testable
+without Whisper) + `asr.transcribe_words` + the `edit_speech` MCP tool
+(31st): fillers per language + `extra_fillers`, word/bigram repeats (false
+starts), pause tightening (`max_pause_s` → `target_pause_s`, head+tail of
+the pause preserved), `remove_text` / `keep_text` (pull quotes) /
+`bleep_text` (`tone` = 1 kHz at speech level, `silence` = own room tone),
+`preview=True` returns the plan only. Cut list = session region map →
+viewer timeline + `export_markers` (times in original-file time). Word
+timestamps also exposed via `transcribe_audio(word_timestamps=True)`.
+Not in A: head/tail trim (phase C), noise-floor matching at joints beyond
+room tone (phase D room-match).
 
 **Phase B — Time & pitch engine.**
 One good dependency (evaluate: signalsmith-stretch python bindings, else

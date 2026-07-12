@@ -41,6 +41,15 @@ uv run ait viewer                                 # viewer on :8471
   `list_recipes`); built-ins live in `src/chat_with_audio/recipes/`, user
   recipes in `~/AudioImprove/recipes/` (env `AIT_RECIPES_DIR`; tests isolate
   this automatically). `chain.validate_steps()` guards every load/save.
+- `textedit.py` → tekstgestuurde dialoogbewerking (`edit_speech`-tool):
+  `asr.transcribe_words` (Whisper woord-timestamps) → `plan_edits` (vulwoorden,
+  herhalingen/valse starts, pauzes inkorten, tekst weg/houden, bleep) →
+  `render_edits` (bleeps eerst — tijdlijn intact —, dan cuts met raised-cosine-
+  crossfades op elke las). Beide zijn puur en zonder Whisper testbaar (tests
+  mocken `asr.transcribe_words`); de kniplijst wordt de regiokaart
+  (viewer-tijdlijn + `export_markers`, tijden in origineel-tijd). Knipvensters
+  houden 30 ms afstand van buurwoorden en nemen de kortste aangrenzende pauze
+  mee, zodat één natuurlijke pauze overblijft.
 - `segments.py` → speech/music/silence segmentation (level-Otsu primary;
   modulation rhythm as fallback). `refine.py` → iterative measure-and-adjust loop
   (`refine_audio` tool): AI denoising once up front, then adjust leveler/loudness
@@ -74,7 +83,7 @@ uv run ait viewer                                 # viewer on :8471
   periodiek materiaal (metronoom) is inherent dubbelzinnig voor correlatie —
   testsignalen moeten aperiodiek gaten (en recorder-seeds ver van event-seeds,
   anders ontstaat een echte schijncorrelatie).
-- `server.py` — 30 MCP tools; `sessions.py` — session folders under
+- `server.py` — 31 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.
