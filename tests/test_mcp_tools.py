@@ -12,7 +12,9 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "list_recipes", "save_recipe", "apply_recipe",
             "check_compliance", "master_for", "export_markers",
             "fill_room_tone", "qc_report", "spectral_repair", "qc_folder",
-            "sync_tracks", "edit_speech", "match_room"}
+            "sync_tracks", "edit_speech", "match_room",
+            "codec_preview", "write_bwf_metadata", "export_podcast_mp3",
+            "delivery_package"}
 
 
 def test_tool_registry():

@@ -194,6 +194,31 @@ The AI region map as DAW markers: Adobe Audition marker CSV, an Audacity
 label track and `markers.json`. *"Hum here, noise there"* becomes navigable
 markers inside your editor.
 
+### `codec_preview(file_path, codecs=["mp3","ogg","opus"])`
+What will lossy compression do to this master? Encode → decode through the
+real codecs (libsndfile — no ffmpeg needed) and measure: loudness shift,
+true-peak overshoot (**codec overs** — the reason streaming specs demand
+−1…−2 dBTP) and residual level, with a verdict per codec. If a codec
+clips, the fix is `master_for` with a lower true-peak ceiling.
+
+### `write_bwf_metadata(file_path, description, originator, timecode="HH:MM:SS:FF", fps=25, project, scene, take, note, coding_history)`
+Broadcast-WAV metadata, written in place: **bext** (EBU 3285 — originator,
+date/time, TimeReference from timecode, coding history) and **iXML**
+(project/scene/take). This is what turns bare PCM into a *broadcast wav*
+that Avid/Audition/Resolve read. Audio data stays bit-for-bit untouched.
+
+### `export_podcast_mp3(file_path, out_path, title, artist="", album="", chapters=None)`
+Podcast MP3 with ID3v2.3 **chapters** (CHAP/CTOC): players like Apple
+Podcasts and Overcast show the titles and make the timeline clickable.
+`chapters=[{"start_s": 0, "end_s": 62.5, "title": "Intro"}, …]` — let the
+chat derive them from the transcript or session segments.
+
+### `delivery_package(file_path | session_id, spec=None, out_dir=None, name=None, include_mp3=False)`
+The folder you actually send: master + `qc_report.md` (+ spec check +
+`compliance.json`), DAW markers if the session has a region map, optional
+MP3 listening copy, and `checksums.md5` + `manifest.json` so the receiving
+side can verify the delivery (`md5sum -c checksums.md5`).
+
 ---
 
 ## Recipes (reuse & share)

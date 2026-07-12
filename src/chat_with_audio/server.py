@@ -6,6 +6,7 @@ gereserveerd voor het MCP-protocol.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -1354,6 +1355,193 @@ def qc_report(file_path: str, spec: str | None = None,
         out.write_text(sheet)
         result["export_path"] = str(out)
     return result
+
+
+@mcp.tool()
+def codec_preview(file_path: str, codecs: list[str] | None = None) -> dict:
+    """Hoor/zie wat lossy compressie straks met de master doet, vóór publicatie.
+
+    Encodeert en decodeert door de echte codecs (mp3, ogg-vorbis, opus via
+    libsndfile — geen ffmpeg nodig) en meet het verschil: loudness-shift,
+    true-peak-overshoot (codec overs: waarom streamingdiensten -1 à -2 dBTP
+    eisen) en het residu-niveau. Verdict per codec; bij overs is de fix
+    master_for met een lager true-peak-plafond.
+    """
+    from chat_with_audio import delivery
+
+    x, sr = io.load_audio(file_path)
+    reports = delivery.codec_report(x, sr, codecs or ["mp3", "ogg", "opus"])
+    worst_tp = max(r["true_peak_out_dbtp"] for r in reports)
+    return {
+        "file": str(Path(file_path).expanduser()),
+        "codecs": reports,
+        "worst_true_peak_dbtp": worst_tp,
+        "hint": ("Minstens één codec klapt boven -0.3 dBTP: verlaag het "
+                 "true-peak-plafond (master_for ... true_peak) en check opnieuw."
+                 if any(r["codec_overs"] for r in reports)
+                 else "Geen codec overs: deze master overleeft lossy distributie."),
+    }
+
+
+@mcp.tool()
+def write_bwf_metadata(file_path: str, description: str = "",
+                       originator: str = "Chat with Audio",
+                       timecode: str | None = None, fps: float = 25.0,
+                       project: str = "", scene: str = "", take: str = "",
+                       note: str = "", coding_history: str = "") -> dict:
+    """Schrijf broadcast-WAV-metadata (bext + iXML) in een wav — in place.
+
+    bext (EBU 3285): omschrijving, originator, datum/tijd (nu), timecode
+    ("HH:MM:SS:FF" met fps → TimeReference in samples sinds middernacht) en
+    coding history. iXML: project/scene/take/notitie. Facilities en DAW's
+    (Avid, Audition, Resolve) lezen dit; het is wat een levering 'broadcast
+    wav' maakt in plaats van kale pcm. Audio-data blijft bit-voor-bit gelijk.
+    """
+    from chat_with_audio import bwf
+
+    p = Path(file_path).expanduser()
+    info = io.probe(str(p))
+    sr = int(info.get("sample_rate") or 48000)
+    time_ref = bwf.timecode_to_samples(timecode, sr, fps) if timecode else 0
+    now = time.localtime()
+    bext = bwf.build_bext(
+        description=description, originator=originator,
+        origination_date=time.strftime("%Y-%m-%d", now),
+        origination_time=time.strftime("%H:%M:%S", now),
+        time_reference=time_ref, coding_history=coding_history)
+    ixml = bwf.build_ixml(project=project, scene=scene, take=take, note=note,
+                          fps=fps) if (project or scene or take or note) else None
+    bwf.write_chunks(p, bext=bext, ixml=ixml)
+    back = bwf.read_metadata(p)
+    return {
+        "file": str(p),
+        "written": back,
+        "timecode": bwf.samples_to_timecode(time_ref, sr, fps) if time_ref else None,
+        "hint": "Metadata staat erin; de audio zelf is onaangeroerd.",
+    }
+
+
+@mcp.tool()
+def export_podcast_mp3(file_path: str, out_path: str, title: str,
+                       artist: str = "", album: str = "",
+                       chapters: list[dict] | None = None) -> dict:
+    """Exporteer een podcast-mp3 met ID3-hoofdstukken (klikbare tijdlijn).
+
+    chapters: [{"start_s": 0, "end_s": 62.5, "title": "Intro"}, ...] — spelers
+    als Apple Podcasts en Overcast tonen de titels en maken de tijdlijn
+    klikbaar. Encoding via libsndfile/LAME, tag is ID3v2.3 (CHAP/CTOC).
+    Tip: laat de hoofdstukken uit het transcript komen (transcribe_audio) of
+    uit de segmenten in een sessie.
+    """
+    import soundfile as sf_mod
+
+    from chat_with_audio import id3
+
+    x, sr = io.load_audio(file_path)
+    out = Path(out_path).expanduser()
+    if out.suffix.lower() != ".mp3":
+        out = out.with_suffix(".mp3")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    sf_mod.write(str(out), x.T, sr, format="MP3")
+    id3.write_tags(out, title=title, artist=artist or None, album=album or None,
+                   chapters=chapters)
+    read_back = id3.read_chapters(out)
+    return {
+        "export_path": str(out),
+        "chapters_written": len(read_back),
+        "chapters": read_back,
+        "size_bytes": out.stat().st_size,
+    }
+
+
+@mcp.tool()
+def delivery_package(file_path: str | None = None, session_id: str | None = None,
+                     spec: str | None = None, out_dir: str | None = None,
+                     name: str | None = None, include_mp3: bool = False) -> dict:
+    """Bundel een complete aflevering in één map: master + QC + checksums.
+
+    Inhoud: de master (uit file_path of de processed.wav van een sessie),
+    qc_report.md (met spec-check als spec is opgegeven), compliance.json,
+    DAW-markers (als de sessie een regiokaart heeft), optioneel een mp3-
+    luisterkopie, en checksums.md5 + manifest.json zodat de ontvanger de
+    levering kan verifiëren. Dit is de map die je opstuurt.
+    """
+    from chat_with_audio import compliance as comp
+    from chat_with_audio import delivery, markers, qcsheet
+
+    if session_id:
+        d = sessions.session_path(session_id)
+        src = d / "processed.wav"
+        if not src.exists():
+            src = d / "original.wav"
+        base_name = name or session_id
+        timeline_path = d / "timeline.json"
+    elif file_path:
+        src = Path(file_path).expanduser()
+        base_name = name or src.stem
+        timeline_path = None
+    else:
+        raise ValueError("Geef file_path of session_id op.")
+
+    out = Path(out_dir).expanduser() if out_dir else \
+        sessions.sessions_dir() / f"delivery-{base_name}"
+    out.mkdir(parents=True, exist_ok=True)
+
+    x, sr = io.load_audio(src)
+    master = out / f"{base_name}.wav"
+    import shutil
+
+    shutil.copyfile(src, master)
+
+    m = analysis.analyze(x, sr)
+    scores, issues = analysis.score_and_issues(m)
+    container = io.probe(str(master))
+    report = None
+    if spec:
+        dlg = None
+        if comp.SPECS.get(spec, {}).get("gating") == "dialogue":
+            from chat_with_audio.segments import classify_segments
+
+            dlg = comp.dialogue_loudness(x, sr, classify_segments(x, sr))
+        report = comp.check(m, spec, dialogue_lufs=dlg, file_info=container)
+        (out / "compliance.json").write_text(
+            json.dumps(report, indent=2, ensure_ascii=False))
+    sheet = qcsheet.build_qc_sheet(str(master), container, m, scores, issues,
+                                   compliance_report=report)
+    (out / "qc_report.md").write_text(sheet)
+
+    files = [master, out / "qc_report.md"]
+    if report:
+        files.append(out / "compliance.json")
+    if timeline_path and timeline_path.exists():
+        timeline = json.loads(timeline_path.read_text())
+        if timeline.get("regions"):
+            marker_info = markers.write_markers(timeline, out)
+            files += [Path(marker_info[k]) for k in
+                      ("audition_csv", "audacity_labels", "json")]
+    if include_mp3:
+        mp3 = out / f"{base_name}.mp3"
+        import soundfile as sf_mod
+
+        sf_mod.write(str(mp3), x.T, sr, format="MP3")
+        files.append(mp3)
+
+    delivery.write_checksums(files, out / "checksums.md5")
+    entries = [{"name": p.name, "bytes": p.stat().st_size, "md5": delivery.md5sum(p)}
+               for p in sorted(files, key=lambda p: p.name)]
+    manifest = delivery.write_manifest(out, entries, {
+        "master": master.name, "spec": spec,
+        "passed_compliance": report["passed"] if report else None,
+        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+    })
+    return {
+        "package_dir": str(out),
+        "files": [e["name"] for e in entries] + ["checksums.md5", "manifest.json"],
+        "passed_compliance": report["passed"] if report else None,
+        "manifest_path": str(manifest),
+        "hint": "Deze map is de levering: master, rapporten en checksums bij "
+                "elkaar. md5sum -c checksums.md5 verifieert aan de andere kant.",
+    }
 
 
 @mcp.tool()
