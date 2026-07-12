@@ -689,7 +689,14 @@ def master_for(file_path: str, spec: str = "ebu-r128", out_path: str | None = No
             sample_rate = fmt.get("sample_rate")
         if bit_depth is None:
             bit_depth = fmt.get("min_bit_depth")
-        y_out, sr_out = (io.resample(y, sr, sample_rate) if sample_rate else (y, sr))
+        y_out = y
+        if fmt.get("channels") == 2 and y_out.shape[0] == 1:
+            # mono-bron voor een 2.0-levering: dual-mono is de standaardpraktijk
+            y_out = np.repeat(y_out, 2, axis=0)
+            rationale.append("Mono-bron als dual-mono stereo geëxporteerd "
+                             "(2.0-leveringseis).")
+        y_out, sr_out = (io.resample(y_out, sr, sample_rate)
+                         if sample_rate else (y_out, sr))
         out = Path(out_path).expanduser()
         subtype = io.BIT_DEPTH_SUBTYPES.get(bit_depth or 24, "PCM_24")
         if out.suffix.lower() in ("", ".wav"):
@@ -706,18 +713,21 @@ def master_for(file_path: str, spec: str = "ebu-r128", out_path: str | None = No
     elif fmt:
         # geen leveringsbestand: keur de sessie-wav (PCM_24 op bron-sample-rate)
         export_info = {"sample_rate": sr, "subtype": "PCM_24", "bit_depth": 24,
-                       "codec": "pcm_s24le"}
+                       "codec": "pcm_s24le", "channels": int(x.shape[0])}
 
     report_after = comp.check(m1, spec, dialogue_lufs=dlg1, file_info=export_info)
     rationale.append("Eindcontrole: " + ("GESLAAGD voor " if report_after["passed"]
                      else "nog NIET geslaagd voor ") + spec_def["name"] +
                      ("" if report_after["passed"] else
                       f" (open: {', '.join(report_after['failed_checks'])})"))
+    fmt_checks = {"Sample rate", "Kanalen (formaat)", "Leveringsformaat"}
     if fmt and not out_path and not report_after["passed"] \
-            and "Sample rate" in report_after["failed_checks"]:
+            and fmt_checks & set(report_after["failed_checks"]):
         rationale.append("Tip: geef out_path op — de export krijgt dan automatisch "
                          f"het spec-formaat ({fmt.get('sample_rate')} Hz / "
-                         f"{fmt.get('min_bit_depth')}-bit).")
+                         f"{fmt.get('min_bit_depth')}-bit"
+                         + (", mono wordt dual-mono" if fmt.get("channels") == 2
+                            else "") + ").")
 
     session = sessions.create_session(
         file_path, x, sr, m0, y, m1, resolved, rationale, None,

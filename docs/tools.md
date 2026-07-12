@@ -16,7 +16,9 @@ max, BS.1770), true peak (4× oversampled), PLR, RMS, crest factor, noise
 floor, SNR, silence %, LRA, spectrum (band energy, centroid, tilt), hum
 detection, narrow resonances, clipping, DC offset, head/tail silence,
 digital dropout scan and stereo QC (phase correlation, balance, dead
-channel, dual-mono, polarity inversion). Returns metrics, 0-100 scores
+channel, dual-mono, polarity inversion). **5.1 files** additionally get
+weighted surround loudness (LFE excluded), per-channel levels, dead-channel
+detection and the ITU stereo-downmix true peak. Returns metrics, 0-100 scores
 (loudness/noise/dynamics/clarity/overall), concrete issues with fix
 suggestions, and a taste score once the taste model is trained.
 

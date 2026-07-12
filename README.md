@@ -65,9 +65,11 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
 - **"Set this up in Audition"** — `export_to_audition`: stems + a .sesx
   multitrack session, opened directly in Adobe Audition.
 - **"Is this broadcast-proof?"** — `check_compliance`: pass/fail report
-  against EBU R128, ATSC A/85, Netflix (dialogue-gated), Apple Podcasts,
-  Spotify, YouTube or ACX audiobook, including the technical QC gates
-  (clipping, dropouts, dead channel, anti-phase).
+  against EBU R128, ATSC A/85, Netflix 2.0 & 5.1 (dialogue-gated, on 5.1
+  detected on the center channel; LFE excluded from loudness), Apple
+  Podcasts, Spotify, YouTube or ACX audiobook, including the technical QC
+  gates (clipping, dropouts, dead channel, anti-phase, ITU-downmix peak) and
+  ADM BWF (Dolby Atmos) recognition.
 - **"Master this for European broadcast, 48 kHz 24-bit"** — `master_for`:
   masters to the spec (dialogue-gated specs steer on the detected speech),
   re-verifies, and exports a delivery file with high-quality SRC and bit-depth

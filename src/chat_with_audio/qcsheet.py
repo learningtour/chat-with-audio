@@ -63,6 +63,17 @@ def build_qc_sheet(file_path: str, container: dict, metrics: dict, scores: dict,
         _row("Stilte kop/staart", f"{m.get('lead_silence_s')} s / "
                                    f"{m.get('tail_silence_s')} s"),
     ]
+    surround = m.get("surround")
+    if surround:
+        lv = surround.get("channel_levels_db") or {}
+        lines += [
+            _row("Layout", surround.get("layout")),
+            _row("Kanaalniveaus", ", ".join(f"{k} {v} dB" for k, v in lv.items())),
+            _row("Dode kanalen", ", ".join(surround.get("dead_channels") or []) or "geen"),
+            _row("LFE", "stil" if surround.get("lfe_silent") else "actief"),
+            _row("Downmix true peak (ITU)",
+                 f"{surround.get('downmix_true_peak_dbtp')} dBTP"),
+        ]
     stereo = m.get("stereo")
     if stereo:
         lines += [

@@ -24,12 +24,32 @@ def _frame_rms_db(mono: np.ndarray, sr: int, frame_ms: float = 25.0) -> np.ndarr
     return _db(np.sqrt((fr**2).mean(axis=1) + 1e-20))
 
 
+# Surround-layouts (SMPTE-kanaalvolgorde in wav). loudness_order selecteert de
+# kanalen voor BS.1770 zónder LFE, in de volgorde die pyloudnorm's vaste
+# G-gewichten [1, 1, 1, 1.41, 1.41] verwacht: FL FR FC BL BR.
+SURROUND_LAYOUTS = {
+    6: {"name": "5.1 (SMPTE)",
+        "channels": ["FL", "FR", "FC", "LFE", "BL", "BR"],
+        "lfe": 3,
+        "loudness_order": [0, 1, 2, 4, 5]},
+}
+
+
+def loudness_view(x: np.ndarray) -> np.ndarray:
+    """Kanaalselectie voor BS.1770-metingen: bij 5.1 gaat de LFE eruit en
+    krijgen de surrounds via de kanaalvolgorde hun +1.5 dB-weging."""
+    lay = SURROUND_LAYOUTS.get(x.shape[0])
+    return x[lay["loudness_order"]] if lay else x
+
+
 def measure_lufs(x: np.ndarray, sr: int) -> float | None:
-    """Geintegreerde loudness (BS.1770) via pyloudnorm; None bij te korte/stille audio."""
+    """Geintegreerde loudness (BS.1770) via pyloudnorm; None bij te korte/stille
+    audio. Surround (5.1) wordt gewogen gemeten, LFE telt niet mee."""
     import pyloudnorm as pyln
 
     if x.shape[1] / sr < 0.5:
         return None
+    x = loudness_view(x)
     meter = pyln.Meter(sr)
     data = x.T if x.shape[0] > 1 else x[0]
     val = float(meter.integrated_loudness(np.asarray(data, dtype=np.float64)))
@@ -39,6 +59,7 @@ def measure_lufs(x: np.ndarray, sr: int) -> float | None:
 def _short_term_lufs(x: np.ndarray, sr: int, win_s: float = 3.0, hop_s: float = 1.0) -> list[float]:
     import pyloudnorm as pyln
 
+    x = loudness_view(x)
     n = x.shape[1]
     win, hop = int(win_s * sr), int(hop_s * sr)
     if n < win:
@@ -64,6 +85,7 @@ def _momentary_lufs_max(x: np.ndarray, sr: int) -> float | None:
     """Hoogste momentary loudness (400 ms-vensters, EBU-terminologie)."""
     import pyloudnorm as pyln
 
+    x = loudness_view(x)
     n = x.shape[1]
     win = int(0.4 * sr)
     if n < win:
@@ -114,6 +136,34 @@ def _stereo_qc(x: np.ndarray) -> dict | None:
         "dual_mono": dual_mono,
         "polarity_inverted": bool(corr is not None and corr < -0.9),
     }
+
+
+def _surround_qc(x: np.ndarray, sr: int) -> dict | None:
+    """5.1-QC: per-kanaal-niveaus, dode full-range-kanalen, stille LFE en de
+    true peak van de ITU-stereodownmix (klassieke keuring: clipt de downmix?)."""
+    lay = SURROUND_LAYOUTS.get(x.shape[0])
+    if lay is None:
+        return None
+    names = lay["channels"]
+    levels = {}
+    dead = []
+    for i, name in enumerate(names):
+        rms = float(np.sqrt(np.mean(x[i].astype(np.float64) ** 2)))
+        levels[name] = round(float(_db(rms)), 1)
+        if i != lay["lfe"] and rms < 1e-6:
+            dead.append(name)
+    lfe_silent = levels[names[lay["lfe"]]] <= -90.0
+
+    # ITU-R BS.775 stereodownmix: Lo = FL + 0.708·FC + 0.708·BL (idem rechts)
+    fl, fr, fc = x[0].astype(np.float64), x[1].astype(np.float64), x[2].astype(np.float64)
+    bl, br = x[4].astype(np.float64), x[5].astype(np.float64)
+    downmix = np.stack([fl + 0.708 * fc + 0.708 * bl,
+                        fr + 0.708 * fc + 0.708 * br])
+    return {"layout": lay["name"],
+            "channel_levels_db": levels,
+            "dead_channels": dead,
+            "lfe_silent": lfe_silent,
+            "downmix_true_peak_dbtp": round(_true_peak_db(downmix, sr), 2)}
 
 
 def _detect_dropouts(mono: np.ndarray, sr: int, max_report: int = 5) -> dict:
@@ -246,7 +296,12 @@ def _spectral(mono: np.ndarray, sr: int) -> dict:
 def analyze(x: np.ndarray, sr: int) -> dict:
     """Volledige kwaliteitsanalyse van (channels, n) float32-audio."""
     x = x[None, :] if x.ndim == 1 else x
-    mono = x.mean(axis=0)
+    lay = SURROUND_LAYOUTS.get(x.shape[0])
+    if lay:  # mono-vouw zonder LFE: sub-energie hoort niet in spectrum/detectie
+        full_range = [i for i in range(x.shape[0]) if i != lay["lfe"]]
+        mono = x[full_range].mean(axis=0)
+    else:
+        mono = x.mean(axis=0)
     n = x.shape[1]
 
     frames = _frame_rms_db(mono, sr)
@@ -283,7 +338,12 @@ def analyze(x: np.ndarray, sr: int) -> dict:
     lufs = measure_lufs(x, sr)
     true_peak = _true_peak_db(x, sr)
     momentary = _momentary_lufs_max(x, sr)
-    lead_s, tail_s = _edge_silence(frames, 0.025, noise_floor)
+    if signal_level - noise_floor < 10.0:
+        # continue content zonder pauzes: vloer ~ signaalniveau, dus een
+        # kop/staart-stiltemeting is betekenisloos (zelfde guard als silence_pct)
+        lead_s, tail_s = 0.0, 0.0
+    else:
+        lead_s, tail_s = _edge_silence(frames, 0.025, noise_floor)
     metrics = {
         "duration_s": round(n / sr, 2),
         "sample_rate": sr,
@@ -306,7 +366,8 @@ def analyze(x: np.ndarray, sr: int) -> dict:
         "lead_silence_s": lead_s,
         "tail_silence_s": tail_s,
         "dropouts": _detect_dropouts(mono, sr),
-        "stereo": _stereo_qc(x),
+        "stereo": _stereo_qc(x) if x.shape[0] == 2 else None,
+        "surround": _surround_qc(x, sr),
         "hum": _detect_hum(mono, sr),
         "resonances": _detect_resonances(mono, sr),
     }
@@ -424,6 +485,22 @@ def score_and_issues(m: dict, target_lufs: float = -15.0) -> tuple[dict, list[di
         issues.append({"severity": "medium", "code": "unbalanced",
                        "message": f"Stereo-balans scheef ({bal:+.1f} dB links t.o.v. rechts).",
                        "suggestion": "apply_chain met gain per kanaal, of pan corrigeren"})
+
+    surround = m.get("surround") or {}
+    if surround.get("dead_channels"):
+        clarity -= 20
+        issues.append({"severity": "high", "code": "dead_surround_channel",
+                       "message": f"Dode kanalen in de {surround.get('layout')}-mix: "
+                                  f"{', '.join(surround['dead_channels'])}.",
+                       "suggestion": "bronmix controleren; kanaalvolgorde (SMPTE) "
+                                     "verifieren"})
+    dm_tp = surround.get("downmix_true_peak_dbtp")
+    if dm_tp is not None and dm_tp > -0.1:
+        issues.append({"severity": "medium", "code": "downmix_clipping",
+                       "message": f"De ITU-stereodownmix piekt op {dm_tp} dBTP — "
+                                  "clipt bij afspelen op stereo-apparaten.",
+                       "suggestion": "mix 1-2 dB conservatiever of limiteer de "
+                                     "downmix apart"})
 
     drops = m.get("dropouts") or {}
     if drops.get("count"):

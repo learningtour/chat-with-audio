@@ -35,8 +35,19 @@ SPECS: dict[str, dict] = {
         "gating": "dialogue",
         "loudness": {"target": -27.0, "tol": 2.0},
         "true_peak_max": -2.0,
-        # Netflix-leveringsspec: 48 kHz / 24-bit PCM wav
-        "format": {"sample_rate": 48000, "min_bit_depth": 24, "pcm": True},
+        # Netflix-leveringsspec: 48 kHz / 24-bit PCM wav, stereo
+        "format": {"sample_rate": 48000, "min_bit_depth": 24, "pcm": True,
+                   "channels": 2},
+    },
+    "netflix-5.1": {
+        "name": "Netflix non-theatrical 5.1 (dialogue-gated)",
+        "gating": "dialogue",
+        "loudness": {"target": -27.0, "tol": 2.0},
+        "true_peak_max": -2.0,
+        # 5.1-bed: 48 kHz / 24-bit PCM wav, 6 kanalen (SMPTE-volgorde);
+        # loudness gewogen zonder LFE, dialoogdetectie op het centerkanaal
+        "format": {"sample_rate": 48000, "min_bit_depth": 24, "pcm": True,
+                   "channels": 6},
     },
     "apple-podcast": {
         "name": "Apple Podcasts",
@@ -73,19 +84,54 @@ def list_specs() -> list[dict]:
             for sid, s in SPECS.items()]
 
 
-def dialogue_loudness(x: np.ndarray, sr: int, segments: list[dict]) -> float | None:
-    """BS.1770-loudness over alleen de spraaksegmenten (dialogue-gated benadering)."""
-    from chat_with_audio.analysis import measure_lufs
+def dialogue_loudness(x: np.ndarray, sr: int,
+                      segments: list[dict] | None = None) -> float | None:
+    """Spraak-gated loudness: BS.1770-blokken (400 ms) die dialoog bevatten,
+    energie-gemiddeld — een meting in de geest van Dolby Dialogue Intelligence
+    (niet het gelicenseerde Dolby-algoritme; de eindkeuring bij de distributeur
+    blijft leidend).
+
+    Bij 5.1 wordt de spraak gedetecteerd op het centerkanaal (daar woont de
+    dialoog) en gemeten over de gewogen volledige mix — precies wat een
+    dialogue-gated meting hoort te doen. Bij stereo/mono op de mix zelf;
+    segments (classify_segments) mag worden meegegeven om dubbel werk te
+    voorkomen.
+    """
+    import pyloudnorm as pyln
+
+    from chat_with_audio.analysis import SURROUND_LAYOUTS, loudness_view
+    from chat_with_audio.segments import classify_segments
 
     x2 = x[None, :] if x.ndim == 1 else x
-    parts = [x2[:, int(s["start_s"] * sr):int(s["end_s"] * sr)]
-             for s in segments if s["kind"] == "speech"]
-    if not parts:
+    lay = SURROUND_LAYOUTS.get(x2.shape[0])
+    if lay is not None:
+        center = x2[2:3]  # FC: dialoogdetectie op het centerkanaal
+        segments = classify_segments(center, sr)
+    elif segments is None:
+        segments = classify_segments(x2, sr)
+    spans = [(s["start_s"], s["end_s"]) for s in segments if s["kind"] == "speech"]
+    if not spans:
         return None
-    speech = np.concatenate(parts, axis=1)
-    if speech.shape[1] < sr:
+
+    view = loudness_view(x2)
+    n = view.shape[1]
+    win, hop = int(0.4 * sr), int(0.2 * sr)
+    if n < win:
         return None
-    return measure_lufs(speech, sr)
+    meter = pyln.Meter(sr, block_size=0.4)
+    powers = []
+    for start in range(0, n - win + 1, hop):
+        t = (start + win / 2) / sr
+        if not any(a <= t <= b for a, b in spans):
+            continue
+        seg = view[:, start:start + win]
+        data = seg.T if seg.shape[0] > 1 else seg[0]
+        v = float(meter.integrated_loudness(np.asarray(data, dtype=np.float64)))
+        if np.isfinite(v) and v > -70.0:  # absolute gate
+            powers.append(10.0 ** (v / 10.0))
+    if not powers:
+        return None
+    return float(10.0 * np.log10(np.mean(powers)))
 
 
 def _check(name: str, measured, requirement: str, passed: bool | None,
@@ -108,6 +154,23 @@ def check(metrics: dict, spec_id: str, dialogue_lufs: float | None = None,
 
     fmt = spec.get("format")
     if fmt:
+        ch_req = fmt.get("channels")
+        if ch_req:
+            ch_meas = (file_info or {}).get("channels") or metrics.get("channels")
+            if ch_meas == ch_req:
+                hint = ""
+            elif ch_meas == 6 and ch_req == 2:
+                hint = "dit is een 5.1-mix; keur tegen spec 'netflix-5.1'"
+            elif ch_meas == 2 and ch_req == 6:
+                hint = "dit is een stereomix; keur tegen spec 'netflix-2.0'"
+            elif ch_meas == 1 and ch_req == 2:
+                hint = ("mono-bron: master_for met out_path exporteert "
+                        "automatisch als dual-mono stereo")
+            else:
+                hint = f"lever een {ch_req}-kanaals bestand aan"
+            checks.append(_check("Kanalen (formaat)", ch_meas,
+                                 f"{ch_req} kanalen", ch_meas == ch_req,
+                                 hint=hint))
         sr_req = fmt.get("sample_rate")
         sr_meas = (file_info or {}).get("sample_rate") or metrics.get("sample_rate")
         if sr_req:
@@ -209,6 +272,13 @@ def check(metrics: dict, spec_id: str, dialogue_lufs: float | None = None,
             checks.append(_check(f"Stilte aan de {edge}", v, "<= 1 s (richtlijn)",
                                  v <= 1.0, advisory=True,
                                  hint="" if v <= 1.0 else "wegknippen voor aflevering"))
+
+    if (file_info or {}).get("adm_bwf"):
+        checks.append(_check(
+            "Dolby Atmos (ADM BWF)", "axml/chna-chunks aanwezig",
+            "objectlaag: Dolby-tooling vereist", True, advisory=True,
+            hint="het bed en de downmix zijn hier gekeurd; IAB/object-validatie "
+                 "en binaurale render vereisen de Dolby Atmos-toolchain"))
 
     normative = [c for c in checks if not c["advisory"]]
     passed = all(c["passed"] for c in normative)

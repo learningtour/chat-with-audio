@@ -46,9 +46,15 @@ uv run ait viewer                                 # viewer on :8471
   (`refine_audio` tool): AI denoising once up front, then adjust leveler/loudness
   until the speech peak and balance are right; silence segments are pushed back
   down afterwards (_duck_silence) because the leveler would otherwise lift them.
-- `compliance.py` → delivery-spec registry (EBU R128, ATSC A/85, Netflix
-  dialogue-gated via speech segments, streaming, ACX) + pass/fail checker;
-  `master_for` writes compliance.json into the session (viewer panel).
+- `compliance.py` → delivery-spec registry (EBU R128, ATSC A/85, Netflix 2.0
+  én 5.1 dialogue-gated, streaming, ACX) + pass/fail checker incl. formaat-
+  en kanaaleisen; `master_for` schrijft compliance.json (viewer-paneel) en
+  exporteert mono → dual-mono bij een 2.0-eis. dialogue_loudness = blok-
+  gebaseerde spraak-gated meting (DI-achtig, niét het Dolby-algoritme);
+  op 5.1 detectie op het centerkanaal.
+- Surround: `SURROUND_LAYOUTS` in analysis.py — 5.1 (SMPTE) krijgt gewogen
+  BS.1770 (LFE eruit via loudness_view), per-kanaal-QC en ITU-downmix-piek;
+  ADM BWF (Atmos-metadata) wordt herkend via axml/chna-chunks in io.probe.
 - `dsp/dialogue.py` → breath_control / deplosive / duck_music (chain steps);
   gain envelopes are smoothed with edge padding — plain convolution would
   drag file edges toward zero.

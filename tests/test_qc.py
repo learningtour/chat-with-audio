@@ -85,6 +85,13 @@ def test_edge_silence_measured(sr):
     assert not any(i["code"] == "lead_silence_s" for i in issues)  # < 3 s: geen issue
 
 
+def test_edge_silence_meaningless_on_continuous_content(sr):
+    """Continue toon zonder pauzes: vloer ~ signaal, dus geen kop/staart-stilte."""
+    m = analysis.analyze(_tone(sr, 8, amp=0.2)[None, :], sr)
+    assert m["lead_silence_s"] == 0.0
+    assert m["tail_silence_s"] == 0.0
+
+
 def test_momentary_and_plr(sr):
     x = _tone(sr, 6, amp=0.1)[None, :]
     m = analysis.analyze(x, sr)

@@ -129,13 +129,41 @@ def encode_wav_to(wav_path: str | Path, out_path: str | Path) -> Path:
 _SUBTYPE_BITS = {"PCM_16": 16, "PCM_24": 24, "PCM_32": 32, "FLOAT": 32, "DOUBLE": 64}
 
 
+def _has_adm_chunks(path: Path) -> bool:
+    """Dolby Atmos ADM BWF-herkenning: een RIFF/BW64/RF64-wav met axml- en/of
+    chna-chunks draagt objectmetadata. Alleen chunk-headers worden gelezen."""
+    if path.suffix.lower() != ".wav":
+        return False
+    try:
+        with open(path, "rb") as f:
+            head = f.read(12)
+            if len(head) < 12 or head[:4] not in (b"RIFF", b"BW64", b"RF64"):
+                return False
+            while True:
+                hdr = f.read(8)
+                if len(hdr) < 8:
+                    return False
+                cid = hdr[:4]
+                size = int.from_bytes(hdr[4:8], "little")
+                if cid in (b"axml", b"chna"):
+                    return True
+                if size >= 0xFFFFFFFF:  # RF64-bigsize: niet verder parsen
+                    return False
+                f.seek(size + (size & 1), 1)
+    except Exception:
+        return False
+
+
 def _sf_details(path: Path) -> dict:
     """Subtype/bit depth via soundfile (alleen voor formaten die sf leest)."""
+    details: dict = {"subtype": None, "bit_depth": None}
     try:
         i = sf.info(str(path))
-        return {"subtype": i.subtype, "bit_depth": _SUBTYPE_BITS.get(i.subtype)}
+        details = {"subtype": i.subtype, "bit_depth": _SUBTYPE_BITS.get(i.subtype)}
     except Exception:
-        return {"subtype": None, "bit_depth": None}
+        pass
+    details["adm_bwf"] = _has_adm_chunks(path)
+    return details
 
 
 def probe(path: str | Path) -> dict:
