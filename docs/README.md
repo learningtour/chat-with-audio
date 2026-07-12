@@ -14,6 +14,7 @@ plays every intervention; every operation is a fully documented session.
 | [Smart regions](smart-regions.md) | How the AI finds problem regions and treats only those |
 | [Recipes](recipes.md) | Saving, applying and sharing processing chains |
 | [Architecture](architecture.md) | DSP core, analysis, session model, viewer, MCP layer |
+| [Roadmap & gap analysis](roadmap.md) | Full post-production taxonomy vs current tools, phased build plan |
 
 ## The one-paragraph pitch
 
