@@ -92,6 +92,12 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
 - **"QC this file" / "QC this folder"** — `qc_report` (one printable QC
   sheet) and `qc_folder` (a whole directory audited into one index table
   with verdicts).
+- **"Sync these recorders"** — `sync_tracks`: the 32-track recorder. Files
+  from different devices (lav, boom, field recorder, camera, phone) are
+  aligned on the audio itself — sample-accurate GCC-PHAT, confidence per
+  track, optional clock-drift correction — and come out as aligned WAVs plus
+  an Audition session. A/B in the viewer: unsynced echo soup vs the synced
+  sum.
 - **"Open the viewer"** / **"What exactly changed?"** — A/B comparison; Claude
   reads the same session data the viewer shows.
 
@@ -112,7 +118,7 @@ Command Line Tools. Python 3.11 is fetched by uv itself.
 ```bash
 cd chat-with-audio
 uv sync --all-extras        # builds the C++ core and installs everything (incl. AI denoise)
-uv run pytest               # 92 tests
+uv run pytest               # 109 tests
 uv run python scripts/mcp_smoke.py   # MCP smoke test
 ```
 
@@ -127,7 +133,7 @@ the tool then falls back to spectral gating automatically.
   Claude Desktop after installing; the tools appear under "chat-with-audio".
 - **Codex CLI/app**: registered as a global MCP server via
   `codex mcp add chat-with-audio -- <uv-path> run --directory <project-folder> chat-with-audio-mcp`
-  (verify with `codex mcp list`). Same 29 tools, same sessions and viewer.
+  (verify with `codex mcp list`). Same 30 tools, same sessions and viewer.
 
 Note: run `uv sync --all-extras` first, otherwise the first server start may
 time out while building/downloading.
@@ -188,7 +194,7 @@ Steps are validated before anything runs.
 | Intelligibility | `asr.py` | Whisper transcription + word retention ([asr] extra) |
 | Dereverberation | `dsp/dereverb.py` | ClearVoice MossFormer2 48 kHz, speech segments only ([enhance] extra) |
 | Chain | `chain.py` | step registry (incl. leveler, smart_denoise), loudness normalization |
-| MCP server | `server.py` | 29 tools over stdio (FastMCP) |
+| MCP server | `server.py` | 30 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B player |
 
 Loudness targets: speech −16 LUFS / TP −1.5 dBTP, music −14 LUFS / TP −1.0 dBTP.

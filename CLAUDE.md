@@ -68,7 +68,13 @@ uv run ait viewer                                 # viewer on :8471
   (bin-centerfrequenties laten mainlobe-bins driften — gemeten dphi gebruiken).
 - `duck_music` heeft twee modi: beds (segmentniveau, licht) en stems
   (Demucs-sidechain voor muziek ónder spraak, [stems]-extra).
-- `server.py` — 29 MCP tools; `sessions.py` — session folders under
+- `sync.py` → 32-sporenrecorder (`sync_tracks`): envelope-GCC-PHAT + full-rate
+  verfijning, confidence per spoor, klokdrift-meting/-correctie; uitgelijnde
+  wavs + .sesx; A/B-sessie = ongesynct vs gesynct mixdown. Valkuil: strak
+  periodiek materiaal (metronoom) is inherent dubbelzinnig voor correlatie —
+  testsignalen moeten aperiodiek gaten (en recorder-seeds ver van event-seeds,
+  anders ontstaat een echte schijncorrelatie).
+- `server.py` — 30 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.

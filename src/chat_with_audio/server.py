@@ -1193,6 +1193,139 @@ def qc_report(file_path: str, spec: str | None = None,
 
 
 @mcp.tool()
+def sync_tracks(file_paths: list[str] | None = None, dir_path: str | None = None,
+                reference: str | None = None, correct_drift: bool = False,
+                out_dir: str | None = None) -> dict:
+    """De 32-sporenrecorder: lijn opnames van verschillende recorders uit op
+    het geluid zelf ("link mijn recorders").
+
+    Geef losse bestanden (file_paths) of een map (dir_path) met maximaal 32
+    sporen — lav, boom, veldrecorder, camera-audio, telefoon. De offsets
+    worden gevonden met kruiscorrelatie (envelope-GCC-PHAT, daarna full-rate
+    verfijning op samplenauwkeurigheid); elk spoor krijgt een confidence, en
+    een bestand zonder gedeelde audio wordt niet verschoven maar gemarkeerd.
+    correct_drift meet en corrigeert klokdrift tussen recorders (ppm).
+
+    Output: uitgelijnde wavs op één gezamenlijke tijdlijn (in out_dir of de
+    sessiemap), een Audition-.sesx met alle sporen, en een A/B-sessie waarin
+    A = de ongesynchroniseerde som en B = de gesynchroniseerde som — je hóórt
+    de sync. De tijdlijn in de viewer toont elk spoor op zijn plek.
+    reference: pad van het referentiespoor (standaard: het langste bestand).
+    """
+    from chat_with_audio import sync as sync_mod
+
+    paths: list[Path] = []
+    if dir_path:
+        d = Path(dir_path).expanduser()
+        if not d.is_dir():
+            raise ValueError(f"Geen map: {d}")
+        paths = sorted(p for p in d.iterdir()
+                       if p.suffix.lower() in _AUDIO_EXTS and not p.name.startswith("."))
+    if file_paths:
+        paths += [Path(p).expanduser() for p in file_paths]
+    if len(paths) < 2:
+        raise ValueError("Synchroniseren vraagt minstens 2 sporen "
+                         "(file_paths en/of dir_path).")
+    if len(paths) > sync_mod.MAX_TRACKS:
+        raise ValueError(f"Maximaal {sync_mod.MAX_TRACKS} sporen; "
+                         f"dit zijn er {len(paths)}.")
+
+    tracks: list[dict] = []
+    for p in paths:
+        x, fsr = io.load_audio(p)
+        tracks.append({"name": p.name, "path": str(p), "audio": x, "sr": fsr})
+    if reference:
+        ref_name = Path(reference).expanduser().name
+        ref_i = next((i for i, t in enumerate(tracks) if t["name"] == ref_name), 0)
+    else:
+        ref_i = max(range(len(tracks)),
+                    key=lambda i: tracks[i]["audio"].shape[1] / tracks[i]["sr"])
+    sr = tracks[ref_i]["sr"]
+    for t in tracks:
+        if t["sr"] != sr:
+            t["audio"], t["sr"] = io.resample(t["audio"], t["sr"], sr)
+    ref_mono = tracks[ref_i]["audio"].mean(axis=0).astype(np.float64)
+
+    rationale = [f"32-sporen sync: {len(tracks)} sporen, referentie "
+                 f"'{tracks[ref_i]['name']}' (GCC-PHAT + full-rate verfijning)."]
+    for i, t in enumerate(tracks):
+        if i == ref_i:
+            t.update(offset_s=0.0, confidence=None, synced=True, drift_ppm=None)
+            continue
+        mono = t["audio"].mean(axis=0).astype(np.float64)
+        offset, conf = sync_mod.measure_offset(ref_mono, mono, sr)
+        synced = conf >= sync_mod._CONF_SYNCED
+        drift = (sync_mod.measure_drift(ref_mono, mono, sr, offset)
+                 if synced else None)
+        if synced and correct_drift and drift is not None and abs(drift) > 20:
+            t["audio"] = sync_mod.correct_drift(t["audio"], drift)
+            mono = t["audio"].mean(axis=0).astype(np.float64)
+            offset, conf = sync_mod.measure_offset(ref_mono, mono, sr)
+            residual = sync_mod.measure_drift(ref_mono, mono, sr, offset)
+            rationale.append(f"'{t['name']}': klokdrift {drift:+.0f} ppm "
+                             f"gecorrigeerd (rest: {residual or 0:+.0f} ppm).")
+            drift = residual
+        t.update(offset_s=round(float(offset), 4), confidence=round(float(conf), 1),
+                 synced=bool(synced), drift_ppm=(round(drift, 1)
+                                                 if drift is not None else None))
+        if synced:
+            rationale.append(f"'{t['name']}': offset {offset:+.3f} s "
+                             f"(confidence {conf:.1f}"
+                             + (f", drift {drift:+.0f} ppm" if drift else "") + ").")
+        else:
+            rationale.append(f"'{t['name']}': GEEN gedeelde audio gevonden "
+                             f"(confidence {conf:.1f}) — niet verschoven; staat "
+                             "op 0 in de sessie.")
+
+    tracks, total = sync_mod.align_tracks(tracks, sr)
+    unaligned = sync_mod.mixdown([t["audio"] for t in tracks])
+    aligned_audio = [sync_mod.render_aligned(t, sr, total) for t in tracks]
+    aligned_mix = sync_mod.mixdown(aligned_audio)
+
+    m0 = analysis.analyze(unaligned, sr)
+    m1 = analysis.analyze(aligned_mix, sr)
+    regions = [{"kind": "track", "label": f"{i + 1}. {t['name']}"
+                + (f" ({t['place_s']:+.2f} s)" if t["synced"] else " (niet gesynct)"),
+                "start_s": round(t["place_s"], 2),
+                "end_s": round(t["place_s"] + t["audio"].shape[1] / sr, 2)}
+               for i, t in enumerate(tracks)]
+    session = sessions.create_session(
+        paths[ref_i], unaligned, sr, m0, aligned_mix, m1,
+        [{"type": "sync_tracks",
+          "tracks": [{k: t[k] for k in ("name", "offset_s", "place_s",
+                                        "confidence", "synced", "drift_ppm")}
+                     for t in tracks]}],
+        rationale, None,
+        label=f"{len(tracks)} sporen — gesynct",
+        timeline={"segments": [], "regions": regions})
+
+    d = Path(out_dir).expanduser() if out_dir else (
+        sessions.session_path(session["session_id"]) / "tracks")
+    d.mkdir(parents=True, exist_ok=True)
+    sesx_tracks = []
+    for i, (t, audio) in enumerate(zip(tracks, aligned_audio, strict=True)):
+        p = io.save_wav(d / f"track{i + 1:02d}_{Path(t['name']).stem}.wav", audio, sr)
+        sesx_tracks.append((Path(t["name"]).stem[:24], p, int(audio.shape[1])))
+    from chat_with_audio import audition
+
+    sesx = audition.write_sesx(d, f"sync-{session['session_id'][:15]}",
+                               sesx_tracks, sr)
+    return {
+        "session_id": session["session_id"],
+        "viewer_url": _viewer_url(session["session_id"]),
+        "reference": tracks[ref_i]["name"],
+        "tracks": [{k: t[k] for k in ("name", "offset_s", "place_s", "confidence",
+                                      "synced", "drift_ppm")} for t in tracks],
+        "aligned_dir": str(d),
+        "sesx": str(sesx),
+        "rationale": rationale,
+        "hint": "A/B in de viewer: A = ongesynchroniseerde som (echo-brij), "
+                "B = gesynchroniseerde som. De .sesx opent alle sporen "
+                "uitgelijnd in Audition.",
+    }
+
+
+@mcp.tool()
 def qc_folder(dir_path: str, spec: str | None = None,
               out_path: str | None = None) -> dict:
     """Keur een hele map audio in één keer (inkomende leveringen, archieven).

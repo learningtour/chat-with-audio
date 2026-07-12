@@ -75,6 +75,20 @@ speech, not the whole mix).
 - *"Make this live recording sound like the studio track"* —
   `match_reference(live.wav, studio.wav)`.
 
+## Multi-recorder shoot (interview, podcast on location, multicam)
+
+Everyone pressed record at a different moment: the lav, the boom, the Zoom
+on the table, the camera. Drop them all in one folder and say:
+
+1. *"Sync these recorders"* → `sync_tracks(dir_path=...)`: offsets are found
+   on the audio itself (sample-accurate), each track gets a confidence score,
+   and a file that doesn't belong is flagged instead of misplaced.
+2. Long event? Add `correct_drift=True` — recorder clocks drift apart over
+   an hour; the tool measures it in ppm and corrects.
+3. Check the A/B in the viewer: A is the unsynced pile-up, B the synced sum.
+4. Open the generated `.sesx` in Audition — all tracks aligned on one
+   timeline, ready to mix. Or take the aligned WAVs into any DAW.
+
 ## Consistency across an archive / season
 
 1. Pick your reference episode.

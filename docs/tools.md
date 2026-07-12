@@ -1,6 +1,6 @@
 # Tool reference
 
-All 29 MCP tools, grouped by job. Every processing tool creates a **session**
+All 30 MCP tools, grouped by job. Every processing tool creates a **session**
 (A/B audio, analyses, chain + rationale, timeline, provenance log) and
 returns its `session_id` plus a `viewer_url`. File inputs accept wav, mp3,
 m4a/aac, flac, ogg and aiff; `out_path` exports to the format matching its
@@ -109,6 +109,22 @@ tonal content runs straight through the repair. Outside the patch:
 bit-for-bit untouched. Find the spot with `view_audio` (vertical
 streaks/blobs in the spectrogram) or by ear in the viewer. For damage over
 or next to programme — not for conjuring back lost words.
+
+---
+
+## Multitrack (the 32-track recorder)
+
+### `sync_tracks(file_paths | dir_path, reference=None, correct_drift=False, out_dir=None)`
+Link multiple recorders: up to **32 tracks** (lav, boom, field recorder,
+camera audio, phone) are aligned on the audio content itself —
+envelope-GCC-PHAT for the coarse offset, full-rate refinement for sample
+accuracy. Every track gets a confidence score (a file without shared audio
+is flagged, never silently misplaced), and `correct_drift` measures and
+corrects clock drift between recorders (ppm). Output: aligned WAVs on one
+common timeline, an Audition `.sesx` with all tracks in place, and an A/B
+session where A is the unsynced sum (echo soup) and B the synced sum — you
+*hear* the sync. Known limitation: strictly periodic material (metronomes,
+click tracks) is inherently ambiguous for correlation-based sync.
 
 ---
 
