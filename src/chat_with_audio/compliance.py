@@ -49,6 +49,18 @@ SPECS: dict[str, dict] = {
         "format": {"sample_rate": 48000, "min_bit_depth": 24, "pcm": True,
                    "channels": 6},
     },
+    "op-59": {
+        "name": "OP-59 (Free TV Australië)",
+        "gating": "integrated",
+        "loudness": {"target": -24.0, "tol": 1.0},
+        "true_peak_max": -2.0,
+    },
+    "arib-tr-b32": {
+        "name": "ARIB TR-B32 (Japanse omroep)",
+        "gating": "integrated",
+        "loudness": {"target": -24.0, "tol": 1.0},
+        "true_peak_max": -1.0,
+    },
     "apple-podcast": {
         "name": "Apple Podcasts",
         "gating": "integrated",

@@ -106,6 +106,8 @@ canvas { width: 100%; display: block; background: var(--panel2); border-radius: 
 .reg-text { background: #e07070; border-radius: 3px; }
 .reg-unselected { background: #4a5160; border-radius: 3px; }
 .reg-bleep { background: #d566c8; border-radius: 3px; }
+.reg-tone { background: #5ec1e0; border-radius: 3px; }
+.reg-pop { background: #f0e05e; border-radius: 3px; }
 #tl-tracks .tl-row { margin-bottom: 2px; }
 #tl-tracks .tl-lane { height: 11px; }
 #tl-tracks .tl-name { width: 110px; overflow: hidden; text-overflow: ellipsis;

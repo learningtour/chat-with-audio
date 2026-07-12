@@ -239,6 +239,28 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None,
          klankkleur/formanten op hun plek — uit = stem-anonimisering)
       {"type": "varispeed", "factor": 1.06}
         (tape-stijl: duur en toonhoogte samen; ook {"semitones": 1})
+      {"type": "trim", "start_s": 0, "end_s": null, "to_modulation": true,
+       "threshold_db": -60, "keep_s": 0.25, "pad_head_s": 0, "pad_tail_s": 0}
+        (kop/staart snijden — expliciet of tot de eerste/laatste modulatie —
+         en/of stilte aanzetten)
+      {"type": "polarity_invert", "channels": [0]}
+        (fase omklappen; zonder channels: alle kanalen)
+      {"type": "sample_delay", "ms": 0.3, "channel": 1}
+        (kanaal in de tijd verschuiven — mic-pair-uitlijning, AV-offset;
+         ook {"samples": 13}; zonder channel schuift alles)
+      {"type": "channel_map", "mode": "to_mono"|"dual_mono"|"swap"}
+        (of {"order": [1, 0]} voor een expliciete kanaalmapping)
+      {"type": "mid_side", "width": 1.3, "mid_db": 0, "side_db": 0}
+        (stereobreedte 0-4 en M/S-gains; mono blijft onaangetast)
+      {"type": "bass_mono", "freq": 120}
+        (laag onder freq mono maken — vinyl/club/mono-translatie)
+      {"type": "expander", "threshold_db": -45, "ratio": 2, "range_db": 24}
+        (zachte broer van de gate: onder de drempel geleidelijk zachter)
+      {"type": "multiband_compressor", "crossovers": [200, 2000],
+       "threshold_db": -24, "ratio": 2.5, "band_gains_db": [0, 0, 0]}
+        (per band comprimeren; threshold_db/ratio mogen lijsten per band zijn)
+      {"type": "transient_shaper", "attack_db": 3, "sustain_db": -6}
+        (aanzetten puntiger/ronder, staarten droger/langer — niveauonafhankelijk)
 
     Tip: sluit af met een limiter of loudness_normalize als eerdere stappen het
     niveau verhogen.
@@ -795,7 +817,8 @@ def check_compliance(file_path: str, spec: str = "ebu-r128") -> dict:
     """Controleer een bestand tegen een aflever-spec ("is dit broadcast-proof?").
 
     Specs: ebu-r128 (Europese omroep, -23 LUFS), atsc-a85 (VS-tv, -24),
-    netflix-2.0 (dialogue-gated -27), apple-podcast (-16), spotify (-14),
+    op-59 (Australië, -24), arib-tr-b32 (Japan, -24), netflix-2.0 en
+    netflix-5.1 (dialogue-gated -27), apple-podcast (-16), spotify (-14),
     youtube (-14), acx-audiobook (RMS/piek/ruisvloer). Het rapport geeft per
     criterium gemeten vs vereist met pass/fail, plus de universele technische
     QC-poorten (clipping, dropouts, dood kanaal, tegenfase, kop/staart-stilte).
@@ -958,6 +981,62 @@ def master_for(file_path: str, spec: str = "ebu-r128", out_path: str | None = No
 
 
 @mcp.tool()
+def add_leader(file_path: str, tone_s: float = 10.0, tone_db: float = -18.0,
+               tone_hz: float = 1000.0, gap_s: float = 3.0, two_pop: bool = True,
+               out_path: str | None = None, user_request: str = "") -> dict:
+    """Zet een broadcast-leader vóór het programma: lineup-toon + two-pop.
+
+    Klassieke leveringskop: tone_s seconden referentietoon (tone_hz op tone_db
+    dBFS piek — EBU-huizen willen 1 kHz op -18), dan gap_s stilte met een
+    two-pop (één 24fps-frame 1 kHz) exact 2 seconden vóór de programmastart,
+    zodat beeld en geluid te synchroniseren zijn. two_pop=False laat de pop
+    weg (alleen toon + stilte). De toon- en popposities staan als regiokaart
+    in de sessie (tijden = leveringsbestand) en gaan mee via export_markers.
+    """
+    from chat_with_audio.dsp import generate
+
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    y, info = generate.leader(x, sr, tone_s=tone_s, tone_db=tone_db,
+                              tone_hz=tone_hz, gap_s=gap_s, two_pop=two_pop)
+    m1 = analysis.analyze(y, sr)
+    rationale = [f"Leader opgebouwd: {tone_s:.0f} s {tone_hz:.0f} Hz-toon op "
+                 f"{tone_db:.0f} dBFS, {gap_s:.1f} s stilte"
+                 + (f", two-pop op {info['two_pop']['start_s']:.2f} s (2 s vóór "
+                    "programmastart)" if two_pop else ", zonder two-pop")
+                 + f"; programma begint op {info['program_start_s']:.2f} s."]
+    regions = []
+    if info.get("tone"):
+        regions.append({"kind": "tone", "label": f"{tone_hz:.0f} Hz {tone_db:.0f} dBFS",
+                        "start_s": info["tone"]["start_s"],
+                        "end_s": info["tone"]["end_s"]})
+    if info.get("two_pop"):
+        regions.append({"kind": "pop", "label": "two-pop",
+                        "start_s": info["two_pop"]["start_s"],
+                        "end_s": info["two_pop"]["end_s"]})
+    session = sessions.create_session(
+        file_path, x, sr, m0, y, m1,
+        [{"type": "add_leader", "tone_s": tone_s, "tone_db": tone_db,
+          "tone_hz": tone_hz, "gap_s": gap_s, "two_pop": two_pop}],
+        rationale, None, label=f"{Path(file_path).name} — leader",
+        user_request=user_request or None,
+        timeline={"segments": [], "regions": regions})
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "leader": info,
+        "rationale": rationale,
+        "hint": "Tijden in de regiokaart en markers gelden voor het "
+                "leveringsbestand (mét leader).",
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def list_recipes() -> dict:
     """Toon alle beschikbare recepten: bewaarde bewerkingsketens om te hergebruiken.
 
@@ -1003,6 +1082,10 @@ def save_recipe(name: str, session_id: str | None = None,
                              "is aan dít bestand gebonden en niet als recept "
                              "herbruikbaar. edit_speech plant de knips per bestand "
                              "opnieuw.")
+        if any(s.get("type") == "add_leader" for s in chain_steps):
+            raise ValueError("Deze sessie is een leader-opbouw (toon/two-pop); "
+                             "draai add_leader per levering opnieuw in plaats "
+                             "van een recept.")
         steps = chain_steps
         if not description:
             rat = (data.get("chain") or {}).get("rationale") or []

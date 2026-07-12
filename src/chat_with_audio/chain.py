@@ -308,6 +308,84 @@ def _step_duck_music(x, sr, gap_db: float = 6.0, fade_ms: float = 120.0,
     return y
 
 
+def _step_trim(x, sr, start_s: float | None = None, end_s: float | None = None,
+               to_modulation: bool = False, threshold_db: float = -60.0,
+               keep_s: float = 0.25, pad_head_s: float = 0.0, pad_tail_s: float = 0.0):
+    """Kop/staart snijden (expliciet of tot eerste/laatste modulatie) en/of
+    stilte aanzetten."""
+    from chat_with_audio.dsp import utility
+
+    return utility.trim(x, sr, start_s=start_s, end_s=end_s,
+                        to_modulation=to_modulation, threshold_db=threshold_db,
+                        keep_s=keep_s, pad_head_s=pad_head_s, pad_tail_s=pad_tail_s)
+
+
+def _step_polarity_invert(x, sr, channels: list | None = None):
+    from chat_with_audio.dsp import utility
+
+    return utility.polarity_invert(x, channels=channels)
+
+
+def _step_sample_delay(x, sr, samples: int | None = None, ms: float | None = None,
+                       channel: int | None = None):
+    from chat_with_audio.dsp import utility
+
+    return utility.sample_delay(x, sr, samples=samples, ms=ms, channel=channel)
+
+
+def _step_channel_map(x, sr, mode: str | None = None, order: list | None = None):
+    from chat_with_audio.dsp import utility
+
+    return utility.channel_map(x, mode=mode, order=order)
+
+
+def _step_mid_side(x, sr, width: float = 1.0, mid_db: float = 0.0,
+                   side_db: float = 0.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.mid_side(x, width=width, mid_db=mid_db, side_db=side_db)
+
+
+def _step_bass_mono(x, sr, freq: float = 120.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.bass_mono(x, sr, freq=freq)
+
+
+def _step_expander(x, sr, threshold_db: float = -45.0, ratio: float = 2.0,
+                   attack_ms: float = 5.0, release_ms: float = 120.0,
+                   range_db: float = 24.0):
+    from chat_with_audio.dsp import dynamics_plus
+
+    return dynamics_plus.expander(x, sr, threshold_db=threshold_db, ratio=ratio,
+                                  attack_ms=attack_ms, release_ms=release_ms,
+                                  range_db=range_db)
+
+
+def _step_multiband_compressor(x, sr, crossovers: list | None = None,
+                               threshold_db=-24.0, ratio=2.5,
+                               attack_ms: float = 15.0, release_ms: float = 150.0,
+                               knee_db: float = 6.0, makeup_db: float = 0.0,
+                               band_gains_db: list | None = None):
+    from chat_with_audio.dsp import dynamics_plus
+
+    return dynamics_plus.multiband_compressor(
+        x, sr, crossovers=crossovers, threshold_db=threshold_db, ratio=ratio,
+        attack_ms=attack_ms, release_ms=release_ms, knee_db=knee_db,
+        makeup_db=makeup_db, band_gains_db=band_gains_db)
+
+
+def _step_transient_shaper(x, sr, attack_db: float = 0.0, sustain_db: float = 0.0,
+                           attack_window_ms: float = 30.0,
+                           sustain_release_ms: float = 200.0):
+    from chat_with_audio.dsp import dynamics_plus
+
+    return dynamics_plus.transient_shaper(x, sr, attack_db=attack_db,
+                                          sustain_db=sustain_db,
+                                          attack_window_ms=attack_window_ms,
+                                          sustain_release_ms=sustain_release_ms)
+
+
 def _step_time_stretch(x, sr, factor: float = 1.0):
     """Duur x factor (1.25 = 25% langer), toonhoogte blijft staan."""
     from chat_with_audio.dsp import timepitch
@@ -406,6 +484,15 @@ STEP_REGISTRY = {
     "breath_control": _step_breath_control,
     "deplosive": _step_deplosive,
     "duck_music": _step_duck_music,
+    "trim": _step_trim,
+    "polarity_invert": _step_polarity_invert,
+    "sample_delay": _step_sample_delay,
+    "channel_map": _step_channel_map,
+    "mid_side": _step_mid_side,
+    "bass_mono": _step_bass_mono,
+    "expander": _step_expander,
+    "multiband_compressor": _step_multiband_compressor,
+    "transient_shaper": _step_transient_shaper,
     "time_stretch": _step_time_stretch,
     "pitch_shift": _step_pitch_shift,
     "varispeed": _step_varispeed,

@@ -11,6 +11,8 @@ session and rendered as the *Aflever-check* panel in the viewer.
 |---|---|---|---|---|
 | `ebu-r128` | European broadcast | −23 LUFS ±0.5 (integrated) | ≤ −1 dBTP | LRA ≤ 20 LU (advisory) |
 | `atsc-a85` | US television | −24 LKFS ±2 (integrated) | ≤ −2 dBTP | |
+| `op-59` | Free TV Australia | −24 LKFS ±1 (integrated) | ≤ −2 dBTP | |
+| `arib-tr-b32` | Japanese broadcast | −24 LKFS ±1 (integrated) | ≤ −1 dBTP | |
 | `netflix-2.0` | Netflix-style non-theatrical 2.0 | −27 LKFS ±2 (**dialogue-gated**) | ≤ −2 dBTP | delivery format: 48 kHz / ≥24-bit PCM WAV, 2 ch |
 | `netflix-5.1` | Netflix-style non-theatrical 5.1 | −27 LKFS ±2 (**dialogue-gated**, LFE excluded) | ≤ −2 dBTP | delivery format: 48 kHz / ≥24-bit PCM WAV, 6 ch (SMPTE) |
 | `apple-podcast` | Apple Podcasts | −16 LUFS ±1 | ≤ −1 dBTP | |

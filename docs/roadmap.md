@@ -19,14 +19,14 @@ into an ordered build plan.
 |---|---|---|---|
 | 1 | Prep & organisation | ± | SRC/bit depth/format conversion ✓, audio-from-video ✓ (ffmpeg path), tech check ✓ (qc_report/qc_folder). Gaps: batch rename, session archive/consolidate. — : DAW project organisation (tracks, colors, templates, handles) |
 | 2 | Synchronisation | ± | Waveform auto-sync ✓ (32-track, two-pass, drift ✓). Gaps: BWF timecode read/sync, simple shift/offset tool, transient alignment for mic pairs. — : lipsync-to-picture (no video) |
-| 3 | Select & edit | ✓ | **Text-based editing ✓ (phase A, `edit_speech`)**: cut list from word timestamps, filler-word removal, repeats/false starts, pause shortening, delete/keep by transcript text. ✓ already: breath dimming, room-tone insert. Gap: head/tail silence strip (phase C trim). — : comping, beat/phrase music edits |
+| 3 | Select & edit | ✓ | **Text-based editing ✓ (phase A, `edit_speech`)**: cut list from word timestamps, filler-word removal, repeats/false starts, pause shortening, delete/keep by transcript text. ✓ already: breath dimming, room-tone insert; head/tail silence strip ✓ (trim, phase C). — : comping, beat/phrase music edits |
 | 4 | Repair & restoration | ✓ | Denoise (2 tiers), hum+harmonics, declip/declick, spectral repair, dropouts→room tone, dereverb, de-ess, resonances, DC, source separation. Gaps: noise-profile-from-selection, codec-artifact repair, wow/flutter (archival) |
-| 5 | Volume & dynamics | ± | Comp/gate/limiter/leveler/loudness ✓, ducking ✓ (2 modes). Gaps: **expander, multiband comp, transient shaper, parallel/upward comp** as chain steps |
+| 5 | Volume & dynamics | ✓ | Comp/gate/limiter/leveler/loudness ✓, ducking ✓ (2 modes), expander ✓, multiband comp ✓, transient shaper ✓ (phase C). Gap: parallel/upward comp (composable via gain + chain) |
 | 6 | EQ & tone | ± | Biquad set ✓, match-EQ ✓, auto-EQ rules ✓. Gaps: **dynamic EQ, mid-side EQ, tilt-EQ step**, formant correction; futz-EQ (telephone/radio) belongs in recipes (phase D) |
 | 7 | Speech & dialogue | ± | De-ess/deplosive/breath ✓, leveling ✓, isolate ✓, word/pause edits ✓ (edit_speech). Gaps: boom-lav auto-mix (aligned sum + spectral match), ADR room-match (needs phase D). — : ADR recording |
 | 8 | Vocal (music) editing | — | Tuning/comping/harmonies = music-production DAW work. Pitch/formant primitives ✓ (phase B) as enablers |
 | 9 | Musical timing & pitch | ± | **Engine ✓ (phase B, Signalsmith Stretch)**: time-stretch, pitch-shift (formant-preserve), varispeed — as chain steps + retime_audio. — : beat-quantize/elastic audio (DAW work) |
-| 10 | Stereo & spatial | ✗ | Gaps (all cheap): to-mono/dual-mono, channel swap/remap, polarity invert, sample delay, M/S width, pseudo-stereo, bass-mono. Meters exist ✓ |
+| 10 | Stereo & spatial | ± | to-mono/dual-mono ✓, channel swap/remap ✓, polarity invert ✓, sample delay ✓, M/S width ✓, bass-mono ✓ (phase C). Gap: pseudo-stereo. Meters exist ✓ |
 | 11 | Surround & immersive | ± | 5.1 ✓ (weighted loudness, QC, downmix TP, netflix-5.1). Gaps: 7.1, LtRt downmix render, channel remap. — : Atmos object authoring (Dolby toolchain; ADM recognition ✓) |
 | 12 | Reverb & acoustics | ✗ | **No reverb engine.** Phase D: convolution reverb (IR), room-match for ADR, dereverb ✓ exists |
 | 13 | Delay & echo | ✗ | Phase D: simple delay step (slapback/tempo) — low priority for post |
@@ -37,11 +37,11 @@ into an ordered build plan.
 | 18 | Foley | — | Performance work; foley cleanup = existing repair tools |
 | 19 | Music production | — | Except stems ✓, karaoke ✓ |
 | 20 | Mixing | ± | A/B ✓, mono/downmix checks ✓, stems export ✓ (sync/Audition). Gaps: M&E / DME stems (phase F), mix-minus. — : full mixing UX |
-| 21 | Broadcast | ✓ | R128/A85/dialog-gated ✓, compliance report ✓. Cheap adds: OP-59/ARIB specs, **tone & slate / two-pop generator**, head/tail trim to first/last modulation |
+| 21 | Broadcast | ✓ | R128/A85/dialog-gated ✓, compliance report ✓, OP-59/ARIB ✓, tone & slate / two-pop ✓ (add_leader), head/tail trim to first/last modulation ✓ (phase C) |
 | 22 | Radio & podcast | ± | Podcast recipes ✓, double-ender sync ✓, filler words ✓, bleep/redact ✓, silence shortening ✓ (edit_speech). Gaps (phase E): chapter markers + ID3 |
-| 23 | Mastering | ± | Loudness/TP ✓, album consistency via match_reference ✓. Gaps: **dither + noise shaping on bit reduction (correctness!)**, M/S. — : DDP/ISRC/vinyl |
+| 23 | Mastering | ✓ | Loudness/TP ✓, album consistency via match_reference ✓, dither + noise shaping ✓ (auto op 16-bit), M/S ✓, multiband ✓ (phase C). — : DDP/ISRC/vinyl |
 | 24 | Loudness & metering | ✓ | Full set incl. momentary/LRA/TP/correlation/dropouts/hum. Gaps: THD, spectrogram-in-viewer exists ✓ |
-| 25 | Phase & polarity | ✗ | All cheap (phase C): polarity invert, sample delay, mic-pair alignment (reuse sync refine) |
+| 25 | Phase & polarity | ✓ | polarity invert ✓, sample delay ✓ (phase C; mic-pair binnen een bestand = sample_delay per kanaal, tussen bestanden = sync_tracks) |
 | 26 | Noise & silence | ± | Gate ✓, room tone ✓. Gap: scene noise matching (floor match between takes) |
 | 27 | Online video & social | ± | Loudness targets ✓. Gaps: **codec preview** (AAC/MP3 roundtrip + diff report), loopable audio check |
 | 28 | Accessibility & language | ± | Clean dialogue via separation ±, bleep/redact ✓ (edit_speech), voice anonymize ✓ basic (retime_audio pitch shift zonder formantbehoud). — : dubbing/AD production |
@@ -89,12 +89,23 @@ off = voice anonymization) and `varispeed` (rational resampling, no
 engine) + the `retime_audio` MCP tool (32nd: tempo / target_duration_s /
 pitch_semitones / varispeed).
 
-**Phase C — Cheap utility steps (one batch, many list hits).**
+**Phase C — Cheap utility steps (one batch, many list hits). ✓ BUILT
+(July 12, 2026).**
 `trim` (head/tail/to-first-modulation, frame offset, insert silence),
 `polarity_invert`, `sample_delay`, `expander`, `multiband_compressor`,
 `transient_shaper`, `mid_side` (width, M/S gains), `to_mono`/`dual_mono`/
 channel remap, bass-mono, **dither + noise shaping** in save_wav on bit
 reduction, tone & slate / two-pop generator, OP-59 + ARIB specs.
+*As built:* nine chain steps (`trim`, `polarity_invert`, `sample_delay`,
+`channel_map`, `mid_side`, `bass_mono`, `expander`, `multiband_compressor`
+with exactly-summing FFT band masks, `transient_shaper` with SPL-style
+differential detectors) in `dsp/utility.py` + `dsp/dynamics_plus.py`;
+high-passed TPDF dither automatic on every 16-bit WAV write (libsndfile
+truncates floats — measured: −8 dB THD undithered vs −31 dB dithered at
+1 LSB); `add_leader` MCP tool (33rd, tone + two-pop with region map);
+`op-59` and `arib-tr-b32` specs in compliance + master_for. Not in C:
+pseudo-stereo (still open, ch. 10), frame-rate-aware offsets (express in
+seconds/ms via trim/sample_delay).
 
 **Phase D — Convolution & futz.**
 Convolution engine (IR wav in → reverb step), ADR/room-matching (measure

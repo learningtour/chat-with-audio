@@ -34,7 +34,7 @@ const REG_LABELS = { hum: "netbrom", noise: "ruis", clip: "clipping",
                      boom: "dreun", repair: "painting", track: "spoor",
                      filler: "vulwoord", repeat: "herhaling", pause: "pauze",
                      text: "tekst weg", unselected: "buiten selectie",
-                     bleep: "bleep" };
+                     bleep: "bleep", tone: "toon", pop: "two-pop" };
 
 // ---- sessielijst ----
 function splitLabel(label) {

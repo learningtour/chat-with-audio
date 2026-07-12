@@ -81,6 +81,16 @@ uv run ait viewer                                 # viewer on :8471
   in duurfactor). Formantbehoud = tonaliteitslimiet 8 kHz + cepstrale
   envelop-hermatching per STFT-frame tegen het origineel (±12 dB begrensd);
   varispeed = rationale resampling (Fraction, geen engine).
+- `dsp/utility.py` → trim/polarity_invert/sample_delay/channel_map/mid_side/
+  bass_mono (chain steps); `dsp/dynamics_plus.py` → expander, multiband-
+  compressor (FFT-bandmaskers die exact tot 1 sommeren — onbewerkt = bit-
+  transparant) en transient shaper (SPL-stijl: twee differentiële detectors,
+  envelopvloer -60 dB zodat een niveausprong uit stilte niet alles 'aanzet'
+  maakt). `dsp/generate.py` → lineup-toon + two-pop (`add_leader`-tool,
+  pop exact 2 s vóór programmastart).
+- `io.save_wav` dithert automatisch bij PCM_16 (hoogdoorlaat-TPDF, vaste
+  seed): kale truncatie geeft meetbare correlatievervorming rond de LSB;
+  libsndfile truncateert floats (floor), dus de int16-conversie doen we zelf.
 - `duck_music` heeft twee modi: beds (segmentniveau, licht) en stems
   (Demucs-sidechain voor muziek ónder spraak, [stems]-extra).
 - `sync.py` → 32-sporenrecorder (`sync_tracks`): envelope-GCC-PHAT + full-rate
@@ -89,7 +99,7 @@ uv run ait viewer                                 # viewer on :8471
   periodiek materiaal (metronoom) is inherent dubbelzinnig voor correlatie —
   testsignalen moeten aperiodiek gaten (en recorder-seeds ver van event-seeds,
   anders ontstaat een echte schijncorrelatie).
-- `server.py` — 32 MCP tools; `sessions.py` — session folders under
+- `server.py` — 33 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.

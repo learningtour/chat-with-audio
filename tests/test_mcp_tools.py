@@ -14,7 +14,7 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "list_recipes", "save_recipe", "apply_recipe",
             "check_compliance", "master_for", "export_markers",
             "fill_room_tone", "qc_report", "spectral_repair", "qc_folder",
-            "sync_tracks", "edit_speech", "retime_audio"}
+            "sync_tracks", "edit_speech", "retime_audio", "add_leader"}
 
 
 def test_tool_registry():
@@ -228,6 +228,31 @@ def test_retime_audio_tool(noisy_wav):
     with pytest.raises(ValueError, match="varispeed"):
         server.retime_audio(str(noisy_wav), tempo=1.2, pitch_semitones=2,
                             varispeed=True)
+
+
+def test_add_leader_tool(noisy_wav):
+    res = server.add_leader(str(noisy_wav), tone_s=4.0, gap_s=3.0)
+    assert res["leader"]["program_start_s"] == pytest.approx(7.0)
+    pop = res["leader"]["two_pop"]
+    assert res["leader"]["program_start_s"] - pop["start_s"] == pytest.approx(2.0, abs=0.01)
+
+    detail = server.list_sessions(session_id=res["session_id"])
+    kinds = {r["kind"] for r in detail["timeline"]["regions"]}
+    assert kinds == {"tone", "pop"}
+    markers = server.export_markers(res["session_id"])
+    assert markers["count"] == 2
+
+    with pytest.raises(ValueError, match="leader"):
+        server.save_recipe("mag-niet", session_id=res["session_id"])
+    with pytest.raises(ValueError, match="gap_s"):
+        server.add_leader(str(noisy_wav), gap_s=1.0)
+
+
+def test_op59_and_arib_specs(noisy_wav):
+    for spec in ("op-59", "arib-tr-b32"):
+        rep = server.check_compliance(str(noisy_wav), spec=spec)
+        assert rep["spec"] == spec or spec in str(rep)  # rapport draait
+        assert any(s["id"] == spec for s in rep["available_specs"])
 
 
 def _speech_wav(tmp_path, sr, words, dur_s=8.0):

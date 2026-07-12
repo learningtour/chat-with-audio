@@ -87,7 +87,17 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
 - **"Master this for European broadcast, 48 kHz 24-bit"** — `master_for`:
   masters to the spec (dialogue-gated specs steer on the detected speech),
   re-verifies, and exports a delivery file with high-quality SRC and bit-depth
-  control. The compliance report shows up as a panel in the viewer.
+  control. The compliance report shows up as a panel in the viewer. 16-bit
+  exports get high-passed TPDF dither automatically (truncation distortion is
+  a real, measurable thing).
+- **"Put a lineup tone and two-pop in front"** — `add_leader`: 1 kHz at
+  −18 dBFS, silence, and a two-pop exactly 2 s before programme start —
+  positions land as markers.
+- **"Widen the stereo a touch" / "mono the bass" / "tighten the low end"** —
+  utility chain steps via `apply_chain` or recipes: `trim` (head/tail to
+  first modulation, silence pads), `polarity_invert`, `sample_delay`,
+  `channel_map` (to-mono/dual-mono/swap/remap), `mid_side` width,
+  `bass_mono`, `expander`, `multiband_compressor` and `transient_shaper`.
 - **"Polish the dialogue"** — the film-post steps: `breath_control` (dim
   breaths, never cut), `deplosive` (p/b-pops fixed on the pop only) and
   `duck_music` (music beds ride down under the speech level) — bundled in the
@@ -147,7 +157,7 @@ the tool then falls back to spectral gating automatically.
   Claude Desktop after installing; the tools appear under "chat-with-audio".
 - **Codex CLI/app**: registered as a global MCP server via
   `codex mcp add chat-with-audio -- <uv-path> run --directory <project-folder> chat-with-audio-mcp`
-  (verify with `codex mcp list`). Same 32 tools, same sessions and viewer.
+  (verify with `codex mcp list`). Same 33 tools, same sessions and viewer.
 
 Note: run `uv sync --all-extras` first, otherwise the first server start may
 time out while building/downloading.
@@ -208,7 +218,7 @@ Steps are validated before anything runs.
 | Intelligibility | `asr.py` | Whisper transcription + word retention ([asr] extra) |
 | Dereverberation | `dsp/dereverb.py` | ClearVoice MossFormer2 48 kHz, speech segments only ([enhance] extra) |
 | Chain | `chain.py` | step registry (incl. leveler, smart_denoise), loudness normalization |
-| MCP server | `server.py` | 32 tools over stdio (FastMCP) |
+| MCP server | `server.py` | 33 tools over stdio (FastMCP) |
 | Viewer | `viewer/` | stdlib http.server + Web Audio A/B player |
 
 Loudness targets: speech −16 LUFS / TP −1.5 dBTP, music −14 LUFS / TP −1.0 dBTP.

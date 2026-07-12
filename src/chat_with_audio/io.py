@@ -78,7 +78,28 @@ def resample(x: np.ndarray, sr: int, target_sr: int) -> tuple[np.ndarray, int]:
 BIT_DEPTH_SUBTYPES = {16: "PCM_16", 24: "PCM_24", 32: "FLOAT"}
 
 
-def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24") -> Path:
+def _dither16(x2: np.ndarray, seed: int = 20260712) -> np.ndarray:
+    """Kwantiseer float-audio naar int16 met hoogdoorlaat-TPDF-dither.
+
+    Bitreductie naar 16-bit zonder dither geeft correlatievervorming (harmonics
+    van het kwantisatieraster) en laat signaal onder ~1 LSB volledig verdwijnen.
+    TPDF-dither (verschil van twee uniforme ruisbronnen, ±1 LSB) decorreleert de
+    kwantisatiefout; de eerste-verschilvorm (u[n] - u[n-1]) schuift de
+    ditherenergie naar de hoge frequenties waar het oor het minst gevoelig is
+    (noise shaping). Deterministische seed: sessies blijven reproduceerbaar.
+    """
+    rng = np.random.default_rng(seed)
+    y = np.clip(x2.astype(np.float64), -1.0, 1.0) * 32767.0
+    u = rng.random((x2.shape[0], x2.shape[1] + 1)) - 0.5   # uniform ±0.5 LSB
+    d = u[:, 1:] - u[:, :-1]                                # hoogdoorlaat-TPDF
+    return np.clip(np.round(y + d), -32768, 32767).astype(np.int16)
+
+
+def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24",
+             dither: bool | None = None) -> Path:
+    """Schrijf een wav. dither: None = automatisch (aan bij PCM_16 — daar is
+    bitreductie hoorbaar; 24-bit kwantiseert op ~-144 dB en heeft het niet
+    nodig), True/False dwingt af."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     x2 = x[None, :] if x.ndim == 1 else x
@@ -86,6 +107,9 @@ def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24") 
     # zodat de headroom behouden blijft in plaats van hard af te kappen.
     if x2.size and float(np.abs(x2).max()) > 0.999:
         subtype = "FLOAT"
+    if subtype == "PCM_16" and (dither or dither is None):
+        sf.write(str(path), _dither16(x2).T, sr, subtype="PCM_16")
+        return path
     sf.write(str(path), x2.T, sr, subtype=subtype)
     return path
 

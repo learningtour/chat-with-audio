@@ -1,6 +1,6 @@
 # Tool reference
 
-All 32 MCP tools, grouped by job. Every processing tool creates a **session**
+All 33 MCP tools, grouped by job. Every processing tool creates a **session**
 (A/B audio, analyses, chain + rationale, timeline, provenance log) and
 returns its `session_id` plus a `viewer_url`. File inputs accept wav, mp3,
 m4a/aac, flac, ogg and aiff; `out_path` exports to the format matching its
@@ -193,10 +193,24 @@ requirement fill those in automatically: *"master this for Netflix as
 delivery.wav"* comes out dialogue-gated at −27 LKFS, TP ≤ −2 dBTP, 48 kHz /
 24-bit PCM — and the re-check is run on the actual delivery file.
 
+### `add_leader(file_path, tone_s=10, tone_db=-18, tone_hz=1000, gap_s=3, two_pop=True, out_path=None)`
+Broadcast leader in front of the programme: `tone_s` seconds of lineup tone
+(1 kHz at −18 dBFS peak for EBU houses), then silence with a **two-pop**
+(one 24fps frame of 1 kHz) exactly 2 seconds before programme start, so
+picture and sound can be conformed. Tone and pop positions land in the
+session's region map (times refer to the delivery file) and export via
+`export_markers`. 16-bit exports get dither automatically (see below).
+
 ### `export_markers(session_id, out_dir=None, include_segments=False)`
 The AI region map as DAW markers: Adobe Audition marker CSV, an Audacity
 label track and `markers.json`. *"Hum here, noise there"* becomes navigable
 markers inside your editor.
+
+> **Dither on bit reduction** — every WAV written to 16-bit gets
+> high-passed TPDF dither automatically (deterministic seed, so sessions
+> stay reproducible): plain truncation to 16-bit causes correlated
+> quantization distortion around the LSB. 24-bit output quantizes at
+> ≈−144 dB and needs none.
 
 ---
 
@@ -262,6 +276,15 @@ step objects live inside recipes. Available types:
 | `time_stretch` | duration without pitch | `factor` (duration ratio: 1.25 = 25% longer) |
 | `pitch_shift` | pitch without duration | `semitones`, `preserve_formants` (true) |
 | `varispeed` | tape-style speed (pitch follows) | `factor` (speed) or `semitones` |
+| `trim` | head/tail cut, silence pad | `start_s`/`end_s`, `to_modulation`, `keep_s`, `pad_head_s`/`pad_tail_s` |
+| `polarity_invert` | phase flip | `channels` (list; omit = all) |
+| `sample_delay` | time-shift a channel | `samples` or `ms`, `channel` (omit = all) |
+| `channel_map` | mono/dual-mono/swap/remap | `mode` or `order` (e.g. `[1, 0]`) |
+| `mid_side` | stereo width & M/S gains | `width` (0–4), `mid_db`, `side_db` |
+| `bass_mono` | mono the low end | `freq` (120) |
+| `expander` | soft downward expansion | `threshold_db` (−45), `ratio` (2), `range_db` (24) |
+| `multiband_compressor` | per-band compression | `crossovers` ([200, 2000]), `threshold_db`/`ratio` (scalar or per band), `band_gains_db` |
+| `transient_shaper` | attack/sustain control | `attack_db`, `sustain_db`, `attack_window_ms` (30) |
 | `band_duck` | dynamic low-band taming | `low_hz`, `high_hz`, `max_cut_db` |
 | `pause_duck` | broadcast silence in pauses | `duck_db` (20) |
 | `gate` | noise gate | `threshold_db`, `range_db` |
