@@ -19,7 +19,10 @@ for the tool; capture it as knowledge, not features.*
 > the per-category long tail (BWF timecode *sync*, noise-profile-from-
 > selection, wow/flutter, dynamic/M-S EQ, 7.1/LtRt, scene noise matching,
 > codec-artifact repair, batch rename, session archive) and the
-> follow-ups (real-material validation, README hero, PyPI, Windows run).
+> follow-ups (real-material validation, PyPI, Windows run — the README
+> hero screenshot and two-pass smart_edit are done, and the second pass
+> immediately caught two real bugs: float32 biquad state and notch onset
+> leak, both fixed).
 
 ## How to read this
 
