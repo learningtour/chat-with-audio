@@ -1,4 +1,38 @@
-# Morning report — overnight build, July 13/14, 2026
+# Report — the night into Sunday July 12, 2026 + the Sunday day session
+
+*(Date fix: earlier reports were labeled a day ahead; this covers the
+Saturday-night build and the Sunday daytime continuation.)*
+
+## Sunday day session — three more mountains climbed
+
+Serge said "keep going" from his Sunday couch, so the three biggest items
+from the ideas list got built, tested and shipped (**29 tools, 92 tests
+green, CI green**):
+
+1. **`spectral_repair` — RX-style spectral painting.** Point at a cough,
+   chair squeak or thump (time + optional frequency band) and the patch is
+   repainted from its context. The tests forced the real DSP lesson of the
+   day, twice: random patch phase let tones *decay* in the overlap-add
+   (−11 dB), bin-center phase advance still let a tone's mainlobe bins
+   drift apart (−5 dB) — the fix is the classic phase vocoder: measure each
+   bin's true phase advance from consecutive context frames and continue
+   it. Now a tone runs straight through a full-band repair at a flat
+   −20 dB envelope, and outside the patch everything is bit-for-bit equal.
+2. **`duck_music(mode="stems")` — real sidechain ducking.** Demucs
+   separates the vocals; their envelope pushes the accompaniment down with
+   fast attack / slow release. The light `beds` mode stays the default;
+   the heavy mode reports honestly how much of the time it actually ducked
+   (0% on synthetic tones — Demucs rightly finds no vocals there; real
+   speech lands in the vocals stem).
+3. **`qc_folder` — batch QC.** A whole directory of incoming deliveries
+   audited into one markdown index with a verdict per file; unreadable
+   files become error rows instead of breaking the batch.
+
+Everything below this line is the overnight report.
+
+---
+
+# Morning report — overnight build into Sunday, July 12, 2026
 
 Good morning! Tonight's assignment: judge the software as a sound designer,
 make it 200% better toward industry standard, and write extensive English

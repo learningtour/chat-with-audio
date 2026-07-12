@@ -19,8 +19,8 @@ Python 3.11 is fetched by uv automatically; you don't need to install it.
 git clone https://github.com/learningtour/chat-with-audio
 cd chat-with-audio
 uv sync --all-extras        # builds the C++ core + installs all AI extras
-uv run pytest               # 85 tests should pass
-uv run python scripts/mcp_smoke.py   # end-to-end MCP check (27 tools)
+uv run pytest               # 92 tests should pass
+uv run python scripts/mcp_smoke.py   # end-to-end MCP check (29 tools)
 ```
 
 `uv sync` without `--all-extras` installs a lean base (no torch, no

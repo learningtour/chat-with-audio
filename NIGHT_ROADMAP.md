@@ -1,4 +1,16 @@
-# Night roadmap — July 13/14, 2026
+# Roadmap — Saturday night into Sunday July 12, 2026 (+ Sunday day session)
+
+## Sunday day session (Serge: "keep going while I'm away from the laptop")
+
+- [x] 7. spectral_repair: RX-style spectral painting with phase-vocoder-
+      coherent phase continuation; outside the patch bit-for-bit equal
+- [x] 8. duck_music mode="stems": Demucs-sidechain for music under speech
+      (unit-tested envelope; integration plumbing verified live)
+- [x] 9. qc_folder: batch QC with a per-file verdict index (markdown)
+- [x] 10. Docs/README/CLAUDE.md updated (29 tools, 92 tests), reports,
+      memory, everything pushed
+
+## Original night assignment
 
 Assignment from Serge: "Judge the software as a sound designer — is it
 broadcast and Hollywood proof? Make the tool 200% better; it should become

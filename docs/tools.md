@@ -1,6 +1,6 @@
 # Tool reference
 
-All 27 MCP tools, grouped by job. Every processing tool creates a **session**
+All 29 MCP tools, grouped by job. Every processing tool creates a **session**
 (A/B audio, analyses, chain + rationale, timeline, provenance log) and
 returns its `session_id` plus a `viewer_url`. File inputs accept wav, mp3,
 m4a/aac, flac, ogg and aiff; `out_path` exports to the format matching its
@@ -98,6 +98,16 @@ and fills digital gaps (dropouts, edit holes, ADR joins) with shuffled,
 overlap-added pieces of it — continuous room, never a loop. Only
 exact-silence gaps are filled; everything else stays bit-for-bit untouched.
 
+### `spectral_repair(file_path, start_s, end_s, low_hz=None, high_hz=None, out_path=None)`
+RX-style spectral painting: point at a cough, chair squeak, tick or thump
+(time range up to 5 s, optional frequency band) and the patch is repainted
+from its context — per-bin magnitudes interpolated between the left and
+right neighbourhood, phase continued coherently (phase-vocoder style) so
+tonal content runs straight through the repair. Outside the patch:
+bit-for-bit untouched. Find the spot with `view_audio` (vertical
+streaks/blobs in the spectrogram) or by ear in the viewer. For damage over
+or next to programme — not for conjuring back lost words.
+
 ---
 
 ## Music & stems (require the `stems` extra)
@@ -158,6 +168,12 @@ Starts (if needed) and opens the local A/B viewer.
 Batch: every audio file in a folder through `improve` | `refine` |
 `optimize`. Each file becomes its own session.
 
+### `qc_folder(dir_path, spec=None, out_path=None)`
+Batch QC: audit a whole directory (incoming deliveries, an archive) in one
+command — per file the full analysis + findings and optionally the
+delivery-spec check, summarised as a markdown index table with verdicts.
+Unreadable files become error rows instead of breaking the batch.
+
 ### `rate_audio(label, session_id | file_path, note="")`
 Train the taste model: label results `good`/`bad`; from 2+2 examples,
 `analyze_audio` scores new material against your taste.
@@ -182,7 +198,7 @@ step objects live inside recipes. Available types:
 | `dereverb` | ClearVoice, speech segments | — |
 | `breath_control` | dim breaths, don't cut | `reduction_db` (10) |
 | `deplosive` | p/b-pop repair, pop-local | `cutoff_hz` (120), `sensitivity_db` (6) |
-| `duck_music` | music beds under speech level | `gap_db` (6) |
+| `duck_music` | music under speech level | `gap_db` (6), `mode`: `beds` (between speech) \| `stems` (sidechain via Demucs, under speech) |
 | `band_duck` | dynamic low-band taming | `low_hz`, `high_hz`, `max_cut_db` |
 | `pause_duck` | broadcast silence in pauses | `duck_db` (20) |
 | `gate` | noise gate | `threshold_db`, `range_db` |

@@ -44,10 +44,15 @@ speech, not the whole mix).
    ran hot.
 3. *"Polish the dialogue"* — `apply_recipe("dialogue-polish")`: plosive
    repair, breath dimming (10 dB, never cut), de-esser, −16 LUFS.
-4. *"What exactly changed?"* — press **r** in the viewer: the residual is
+4. *"There's a chair squeak at 12.3"* — `spectral_repair(12.2, 12.6,
+   1500, 6000)`: the squeak's time-frequency patch is repainted from its
+   surroundings; the dialogue below runs straight through.
+5. *"Fill that edit gap with room tone"* — `fill_room_tone`: digital holes
+   get the file's own ambience.
+6. *"What exactly changed?"* — press **r** in the viewer: the residual is
    exactly what was removed. If you hear consonants in the residual,
    something was too aggressive — say so and it gets re-run milder.
-5. *"Give me the region map as markers"* — `export_markers` → import the CSV
+7. *"Give me the region map as markers"* — `export_markers` → import the CSV
    in Audition; every treated region is a cue for manual review.
 
 ## Rescue: noisy location recording
@@ -80,8 +85,16 @@ speech, not the whole mix).
 
 ## Incoming file QC (before you accept a delivery)
 
-*"QC this file"* → `analyze_audio` + `check_compliance` catch: clipping,
-digital dropouts (with positions), dead or anti-phase channels (mono
-fold-down kills those on TV and phones), dual-mono masquerading as stereo,
-DC offset, absurd head/tail silence, hum, and loudness/true-peak violations.
+*"QC this file"* → `qc_report` catches: clipping, digital dropouts (with
+positions), dead or anti-phase channels (mono fold-down kills those on TV
+and phones), dual-mono masquerading as stereo, DC offset, absurd head/tail
+silence, hum, and loudness/true-peak violations — as one printable sheet.
 Two minutes instead of a full listen-through.
+
+A whole batch at once: *"QC this folder against EBU R128"* → `qc_folder`
+returns one index table with a verdict per file and writes it as markdown —
+the morning pile of incoming deliveries, keured before your first coffee.
+
+Music under the dialogue too loud in a delivered mix? *"Duck the music
+under the speech"* → `duck_music(mode="stems")` separates the vocals and
+sidechain-ducks the accompaniment — fast attack, slow release, no pumping.

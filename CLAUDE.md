@@ -56,8 +56,13 @@ uv run ait viewer                                 # viewer on :8471
   (`export_markers`).
 - `dsp/roomtone.py` → room-tone fill: digitale gaten vullen met geshuffelde
   overlap-add van de eigen ambience (`fill_room_tone`); `qcsheet.py` →
-  markdown-QC-rapport (`qc_report`).
-- `server.py` — 27 MCP tools; `sessions.py` — session folders under
+  markdown-QC-rapport (`qc_report`, batch: `qc_folder`).
+- `dsp/spectral_repair.py` → spectral painting (`spectral_repair`): magnitudes
+  interpoleren uit de context, fase phase-vocoder-coherent voortzetten
+  (bin-centerfrequenties laten mainlobe-bins driften — gemeten dphi gebruiken).
+- `duck_music` heeft twee modi: beds (segmentniveau, licht) en stems
+  (Demucs-sidechain voor muziek ónder spraak, [stems]-extra).
+- `server.py` — 29 MCP tools; `sessions.py` — session folders under
   `~/AudioImprove/sessions/` (env `AIT_SESSIONS_DIR`; tests isolate this
   automatically). Every session writes `timeline.json` (segments + treated
   regions) for the viewer's timeline lane; ids get a `-2` suffix on collision.

@@ -1,7 +1,7 @@
 # Architecture
 
 ```
-Claude (chat) ── MCP (stdio) ──> server.py (27 tools, FastMCP)
+Claude (chat) ── MCP (stdio) ──> server.py (29 tools, FastMCP)
                                      │
              ┌───────────────────────┼────────────────────────┐
              ▼                       ▼                        ▼
@@ -104,7 +104,7 @@ smoke test will tell you why not.
 
 ## Testing
 
-85 pytest tests: DSP correctness, segmentation, region detection with
+92 pytest tests: DSP correctness, segmentation, region detection with
 do-no-harm equality asserts, dialogue suite, compliance pass/fail paths,
 recipes round-trips, MCP tool registry and end-to-end flows on synthetic
 audio (deterministic seeds, no fixtures from the network). CI runs lint +
