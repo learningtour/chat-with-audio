@@ -403,6 +403,65 @@ def match_reference(file_path: str, reference_path: str, strength: float = 1.0,
 
 
 @mcp.tool()
+def match_room(file_path: str, reference_path: str, mix: float = 0.35,
+               rt60: float | None = None, eq_strength: float = 1.0,
+               out_path: str | None = None) -> dict:
+    """ADR/room-match: laat een droge (studio-)opname in dezelfde ruimte klinken
+    als een referentieopname uit de scène.
+
+    Twee ingrepen: (1) match-EQ naar de spectrale kleur van de referentie
+    (mic + kamer), (2) convolutie met een gesynthetiseerde kamer waarvan de
+    nagalmtijd uit de referentie is gemeten (Schroeder-achtige RT60-schatting
+    op spraak-offsets). rt60 opgeven overrulet de meting; mix regelt hoeveel
+    kamer eroverheen gaat. Eerlijke kanttekening: dit matcht kleur en galm,
+    geen exacte reflectiepatronen — voor ADR-inpassing meestal precies genoeg.
+    """
+    from chat_with_audio import match as match_mod
+    from chat_with_audio.dsp import space
+
+    x, sr = io.load_audio(file_path)
+    ref, ref_sr = io.load_audio(reference_path)
+    m0 = analysis.analyze(x, sr)
+
+    measured = space.estimate_rt60(ref, ref_sr)
+    used_rt60 = rt60 if rt60 is not None else (measured or 0.3)
+    bands, desc = match_mod.build_match_eq(x, sr, ref, ref_sr, strength=eq_strength)
+    steps: list[dict] = []
+    if bands:
+        steps.append({"type": "eq", "bands": bands})
+    steps.append({"type": "convolve_ir", "mix": mix, "rt60": used_rt60})
+    y, resolved = chain.run_chain(x, sr, steps)
+    m1 = analysis.analyze(y, sr)
+
+    rationale = [f"Kamerkleur gematcht aan {Path(reference_path).name}: "
+                 + (", ".join(desc) if desc else "spectra kwamen al overeen") + ".",
+                 f"Kamergalm: RT60 {used_rt60:.2f}s "
+                 + ("(gemeten in de referentie)" if rt60 is None and measured
+                    else "(opgegeven)" if rt60 is not None
+                    else "(meting lukte niet; voorzichtige default)")
+                 + f", mix {mix:.0%}."]
+    session = sessions.create_session(file_path, x, sr, m0, y, m1, resolved,
+                                      rationale, None,
+                                      label=f"{Path(file_path).name} — room-match")
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "measured_rt60_s": measured,
+        "used_rt60_s": used_rt60,
+        "match_eq": desc,
+        "rationale": rationale,
+        "deltas": session["deltas"],
+        "hint": "Te veel kamer? Draai opnieuw met een lagere mix. In de viewer "
+                "hoor je de inpassing tegen het origineel.",
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def separate_stems(file_path: str, out_dir: str | None = None) -> dict:
     """Splits muziek in stems: vocals, drums, bass en other (Demucs AI-model).
 

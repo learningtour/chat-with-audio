@@ -51,6 +51,11 @@ A user recipe with the same name overrides the built-in — so you can fork
 | `broadcast-quiet-pauses` | Broadcast silence between sentences without gate artifacts |
 | `noisy-speech-rescue` | Heavier chain for genuinely noisy speech (segment-aware denoise) |
 | `music-master` | Careful music master: subsonic cut + −14 LUFS / −1 dBTP |
+| `futz-telephone` | Narrowband phone line: 300–3400 Hz, presence peak, tape drive, firm comp |
+| `futz-walkie` | Portofoon/walkie: even narrower, hard clip, crushed dynamics, gate |
+| `futz-megaphone` | Horn resonance at 1.2 kHz, hard clip, a whiff of outdoor slap |
+| `futz-other-room` | Worldizing light: voice from the room next door (damped highs + room + −6 dB) |
+| `futz-small-speaker` | Transistor radio / laptop / smart speaker: no lows, tinny presence, soft drive |
 
 ## Sharing
 

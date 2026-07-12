@@ -1,0 +1,12 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "futz-walkie",
+  "description": "Portofoon/walkie-talkie-futz: nog smaller dan telefoon (400-2800 Hz), harde saturatie en agressieve compressie met gate — het dichtgeknepen, kapotgecomprimeerde karakter van C2000/PMR-verkeer.",
+  "steps": [
+    {"type": "highpass", "freq": 400, "q": 1.0},
+    {"type": "lowpass", "freq": 2800, "q": 1.0},
+    {"type": "saturate", "drive_db": 14, "mode": "hard"},
+    {"type": "compressor", "threshold_db": -30, "ratio": 8, "attack_ms": 1, "release_ms": 40},
+    {"type": "gate", "threshold_db": -45, "range_db": 40}
+  ]
+}

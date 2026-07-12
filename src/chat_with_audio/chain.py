@@ -453,6 +453,27 @@ def _step_tilt_eq(x, sr, tilt_db: float = 0.0, pivot_hz: float = 650.0):
     return utility.tilt_eq(x, sr, tilt_db, pivot_hz)
 
 
+def _step_convolve_ir(x, sr, ir_path: str | None = None, mix: float = 0.3,
+                      rt60: float = 0.4, damping: float = 0.35,
+                      predelay_ms: float = 8.0, keep_tail: bool = False):
+    from chat_with_audio.dsp import space
+
+    return space.convolve_ir(x, sr, ir_path, mix, rt60, damping, predelay_ms, keep_tail)
+
+
+def _step_saturate(x, sr, drive_db: float = 6.0, mode: str = "tape", mix: float = 1.0):
+    from chat_with_audio.dsp import space
+
+    return space.saturate(x, sr, drive_db, mode, mix)
+
+
+def _step_delay(x, sr, time_ms: float = 120.0, feedback: float = 0.3,
+                mix: float = 0.25):
+    from chat_with_audio.dsp import space
+
+    return space.delay(x, sr, time_ms, feedback, mix)
+
+
 def _step_time_stretch(x, sr, rate: float = 1.0):
     from chat_with_audio.dsp import timepitch
 
@@ -525,6 +546,9 @@ STEP_REGISTRY = {
     "time_stretch": _step_time_stretch,
     "pitch_shift": _step_pitch_shift,
     "varispeed": _step_varispeed,
+    "convolve_ir": _step_convolve_ir,
+    "saturate": _step_saturate,
+    "delay": _step_delay,
 }
 
 

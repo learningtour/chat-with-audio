@@ -1,0 +1,12 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "futz-megaphone",
+  "description": "Megafoon-futz: toeterende midrange (500-4000 Hz) met hoorn-resonantie op 1,2 kHz, harde clip en een vleug korte galm zodat het geluid 'buiten over het plein' klinkt.",
+  "steps": [
+    {"type": "highpass", "freq": 500, "q": 1.0},
+    {"type": "lowpass", "freq": 4000, "q": 1.0},
+    {"type": "eq", "bands": [{"type": "peaking", "freq": 1200, "gain_db": 6, "q": 2.0}]},
+    {"type": "saturate", "drive_db": 12, "mode": "hard"},
+    {"type": "convolve_ir", "mix": 0.18, "rt60": 0.7, "damping": 0.5, "predelay_ms": 20}
+  ]
+}

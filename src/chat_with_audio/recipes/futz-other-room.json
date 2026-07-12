@@ -1,0 +1,10 @@
+{
+  "format": "chat-with-audio/recipe@1",
+  "name": "futz-other-room",
+  "description": "Worldizing light: de stem klinkt 'uit de kamer ernaast' — hoog gedempt (muur), kamergalm eroverheen en 6 dB zachter. Voor off-screen dialoog of een radio die ergens anders staat.",
+  "steps": [
+    {"type": "lowpass", "freq": 1800, "q": 0.7},
+    {"type": "convolve_ir", "mix": 0.5, "rt60": 0.45, "damping": 0.4, "predelay_ms": 12},
+    {"type": "gain", "gain_db": -6}
+  ]
+}

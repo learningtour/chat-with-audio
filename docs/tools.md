@@ -73,6 +73,15 @@ dereverb combinations) each run the full refine loop and are scored
 objectively — Whisper word retention/confidence plus target deviation. Slow
 but thorough; returns the full ranking.
 
+### `match_room(file_path, reference_path, mix=0.35, rt60=None, eq_strength=1.0, out_path=None)`
+ADR/room-match: make a dry (studio) line sit in the same room as a scene
+reference. Two moves: match-EQ toward the reference's spectral colour
+(mic + room), then convolution with a synthesized room whose decay time is
+*measured* from the reference (Schroeder-style RT60 estimate on speech
+offsets; pass `rt60` to override). Honest note: this matches colour and
+decay, not exact reflection patterns — for ADR fitting that is usually
+exactly enough. Too much room? Re-run with a lower `mix`.
+
 ### `match_reference(file_path, reference_path, strength=1.0, max_db=6, match_loudness=True)`
 "Sound like this reference": 1/3-octave match EQ (bounded per band) plus
 loudness match. Keeps episodes and recording days consistent.
@@ -267,6 +276,9 @@ step objects live inside recipes. Available types:
 | `bass_mono` | mono the low end (LR4 split) | `freq` (120) |
 | `tone_slate` | broadcast leader: ref tone + gap | `tone_s` (10), `level_db` (−18), `freq` (1000), `gap_s` (1) |
 | `two_pop` | sync pop before programme | `offset_s` (2), `pop_ms` (42), `level_db` (−18) |
+| `convolve_ir` | convolution reverb: IR file or synthesized room | `ir_path` (else synth), `mix` (0.3), `rt60` (0.4), `damping` (0.35), `predelay_ms` (8), `keep_tail` (False) |
+| `saturate` | tape/soft/hard character & futz | `drive_db` (6), `mode` (tape\|soft\|hard), `mix` (1.0) |
+| `delay` | slapback/echo (feedback comb) | `time_ms` (120), `feedback` (0.3), `mix` (0.25) |
 | `time_stretch` | duration without pitch (phase vocoder, peak-locked) | `rate` (1.25 = 25% faster/shorter; ~0.5–2.0 usable) |
 | `pitch_shift` | pitch without duration | `semitones` (±24), `preserve_formants` (False; True keeps the voice character — no Mickey Mouse) |
 | `varispeed` | tape-style: tempo + pitch together | `rate` (1.05 = 5% faster and higher) |
