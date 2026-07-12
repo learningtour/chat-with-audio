@@ -181,7 +181,8 @@ function renderTimeline() {
   box.hidden = false;
   const dur = current.duration_s || 1;
   const segLane = $("tl-segments"), regLane = $("tl-regions");
-  segLane.innerHTML = ""; regLane.innerHTML = "";
+  const trackBox = $("tl-tracks");
+  segLane.innerHTML = ""; regLane.innerHTML = ""; trackBox.innerHTML = "";
 
   const add = (lane, item, cls, label) => {
     const el = document.createElement("div");
@@ -192,17 +193,45 @@ function renderTimeline() {
     el.onclick = (e) => { e.stopPropagation(); seekTo(item.start_s / dur); };
     lane.appendChild(el);
   };
+
+  // sync-sessies: elke track zijn eigen lane, als een echte 32-sporenrecorder
+  const isMultitrack = regs.length > 0 && regs.every((r) => r.kind === "track");
+  if (isMultitrack) {
+    $("tl-regions-row").style.display = "none";
+    for (const r of regs) {
+      const row = document.createElement("div");
+      row.className = "tl-row";
+      const name = document.createElement("span");
+      name.className = "tl-name";
+      name.textContent = (r.label || "spoor").replace(/\s*\(.*$/, "");
+      name.title = r.label || "";
+      const lane = document.createElement("div");
+      lane.className = "tl-lane";
+      row.appendChild(name);
+      row.appendChild(lane);
+      trackBox.appendChild(row);
+      add(lane, r, "reg-track", r.label || "spoor");
+    }
+  } else {
+    for (const r of regs) add(regLane, r, "reg-" + r.kind,
+                              r.label || REG_LABELS[r.kind] || r.kind);
+    $("tl-regions-row").style.display = regs.length ? "" : "none";
+  }
   for (const s of segs) add(segLane, s, "seg-" + s.kind, SEG_LABELS[s.kind] || s.kind);
-  for (const r of regs) add(regLane, r, "reg-" + r.kind, r.label || REG_LABELS[r.kind] || r.kind);
-  $("tl-regions-row").style.display = regs.length ? "" : "none";
+  $("tl-segments-row").style.display = segs.length ? "" : "none";
 
   const legend = [];
   for (const kind of Object.keys(SEG_LABELS))
     if (segs.some((s) => s.kind === kind))
       legend.push(`<span><span class="sw seg-${kind}"></span>${SEG_LABELS[kind]}</span>`);
-  for (const kind of Object.keys(REG_LABELS)) {
-    const n = regs.filter((r) => r.kind === kind).length;
-    if (n) legend.push(`<span><span class="sw reg-${kind}"></span>${REG_LABELS[kind]} (${n})</span>`);
+  if (isMultitrack) {
+    legend.push(`<span><span class="sw reg-track"></span>${regs.length} sporen · ` +
+                "klik een spoor om ernaartoe te springen</span>");
+  } else {
+    for (const kind of Object.keys(REG_LABELS)) {
+      const n = regs.filter((r) => r.kind === kind).length;
+      if (n) legend.push(`<span><span class="sw reg-${kind}"></span>${REG_LABELS[kind]} (${n})</span>`);
+    }
   }
   $("tl-legend").innerHTML = legend.join("");
 }

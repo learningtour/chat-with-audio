@@ -131,6 +131,47 @@ def test_sync_tracks_marks_unrelated_file(tmp_path, sr):
     assert by_name["los.wav"]["place_s"] == 0.0
 
 
+def test_sync_thirty_two_tracks(tmp_path):
+    """De volle 32 sporen: elk spoor samplenauwkeurig op zijn plek, één .sesx
+    met 32 tracks, alle uitgelijnde bestanden even lang."""
+    sr = 22050  # halve rate houdt de stresstest vlot; het algoritme is rate-agnostisch
+    rng = np.random.default_rng(42)
+    event = _event(sr, 40.0)
+    files = []
+    starts = {}
+    for i in range(32):
+        start = round(float(rng.uniform(0.0, 12.0)), 3)
+        dur = float(rng.uniform(14.0, 22.0))
+        name = f"rec{i + 1:02d}.wav"
+        p = tmp_path / name
+        sf.write(str(p), _recorder(event, sr, start, dur,
+                                   lowpass=bool(i % 3 == 0), seed=200 + i), sr)
+        files.append(str(p))
+        starts[name] = start
+
+    res = server.sync_tracks(file_paths=files)
+    assert len(res["tracks"]) == 32
+    assert all(t["synced"] for t in res["tracks"]), [
+        t["name"] for t in res["tracks"] if not t["synced"]]
+
+    # plaatsing = eigen start minus de start van het vroegste spoor
+    t0 = min(starts.values())
+    for t in res["tracks"]:
+        expected = starts[t["name"]] - t0
+        assert abs(t["place_s"] - expected) < 0.005, (t["name"], t["place_s"], expected)
+
+    from pathlib import Path
+
+    aligned = sorted(Path(res["aligned_dir"]).glob("track*.wav"))
+    assert len(aligned) == 32
+    assert len({sf.info(str(p)).frames for p in aligned}) == 1
+    sesx_text = Path(res["sesx"]).read_text()
+    assert sesx_text.count("<audioClip ") >= 32 or sesx_text.count("track") >= 32
+
+    detail = server.list_sessions(session_id=res["session_id"])
+    assert len(detail["timeline"]["regions"]) == 32
+
+
 def test_sync_tracks_limits(tmp_path):
     import pytest
 

@@ -100,6 +100,10 @@ canvas { width: 100%; display: block; background: var(--panel2); border-radius: 
 .reg-boom { background: var(--reg-boom); border-radius: 3px; }
 .reg-repair { background: #b58ee0; border-radius: 3px; }
 .reg-track { background: #7fb069; border-radius: 3px; }
+#tl-tracks .tl-row { margin-bottom: 2px; }
+#tl-tracks .tl-lane { height: 11px; }
+#tl-tracks .tl-name { width: 110px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; text-transform: none; letter-spacing: 0; }
 #tl-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 0 64px;
   color: var(--muted); font-size: 11px; }
 #tl-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 3px;

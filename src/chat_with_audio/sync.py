@@ -119,6 +119,55 @@ def correct_drift(x2: np.ndarray, drift_ppm: float) -> np.ndarray:
                     ).astype(np.float32)
 
 
+def sync_all(monos: list[np.ndarray], sr: int, ref_i: int) -> list[dict]:
+    """Synchroniseer alle sporen in twee passen.
+
+    Pas 1 meet elk spoor tegen de referentie. Bij veel sporen met korte
+    paarsgewijze overlap (32 recorders die elkaar maar net raken) is dat
+    dubbelzinnig; pas 2 meet daarom elk spoor opnieuw tegen de SOM van de
+    overige geplaatste sporen — die beslaat de hele tijdlijn, dus volledige
+    overlap voor iedereen. Het eigen spoor wordt uit de som gehouden (anders
+    bevestigt een fout geplaatst spoor zichzelf).
+    """
+    n = len(monos)
+    results: list[dict] = []
+    for i in range(n):
+        if i == ref_i:
+            results.append({"offset_s": 0.0, "confidence": None, "synced": True})
+            continue
+        off, conf = measure_offset(monos[ref_i], monos[i], sr)
+        results.append({"offset_s": float(off), "confidence": float(conf),
+                        "synced": conf >= _CONF_SYNCED})
+
+    synced_idx = [i for i in range(n) if results[i]["synced"]]
+    if len(synced_idx) < 2:
+        return results
+    t0 = min(results[i]["offset_s"] for i in synced_idx)
+    total = max(int(round((results[i]["offset_s"] - t0) * sr)) + monos[i].shape[0]
+                for i in synced_idx)
+    mix = np.zeros(total, dtype=np.float64)
+    own_start = {}
+    for i in synced_idx:
+        s = int(round((results[i]["offset_s"] - t0) * sr))
+        own_start[i] = s
+        mix[s:s + monos[i].shape[0]] += monos[i]
+
+    for i in range(n):
+        if i == ref_i:
+            continue
+        others = mix.copy()
+        if i in own_start:
+            s = own_start[i]
+            others[s:s + monos[i].shape[0]] -= monos[i]
+        off2, conf2 = measure_offset(others, monos[i], sr)
+        off2 += t0  # mix-tijdlijn terug naar referentie-tijdlijn
+        c1 = results[i]["confidence"] or 0.0
+        if conf2 >= max(c1, _CONF_SYNCED):
+            results[i] = {"offset_s": float(off2), "confidence": float(conf2),
+                          "synced": True}
+    return results
+
+
 def align_tracks(tracks: list[dict], sr: int) -> tuple[list[dict], int]:
     """Zet per spoor de plaatsing op de gezamenlijke tijdlijn (t=0 = vroegste
     spoor) en geeft (tracks, totale lengte in samples) terug. Elke track-dict

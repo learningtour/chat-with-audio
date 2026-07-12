@@ -1244,38 +1244,47 @@ def sync_tracks(file_paths: list[str] | None = None, dir_path: str | None = None
     for t in tracks:
         if t["sr"] != sr:
             t["audio"], t["sr"] = io.resample(t["audio"], t["sr"], sr)
-    ref_mono = tracks[ref_i]["audio"].mean(axis=0).astype(np.float64)
+    monos = [t["audio"].mean(axis=0).astype(np.float64) for t in tracks]
 
     rationale = [f"32-sporen sync: {len(tracks)} sporen, referentie "
-                 f"'{tracks[ref_i]['name']}' (GCC-PHAT + full-rate verfijning)."]
-    for i, t in enumerate(tracks):
+                 f"'{tracks[ref_i]['name']}' — twee passen: GCC-PHAT tegen de "
+                 "referentie, daarna verfijning tegen de som van de overige "
+                 "sporen (volledige overlap voor elk spoor)."]
+    results = sync_mod.sync_all(monos, sr, ref_i)
+
+    if correct_drift:
+        corrected = False
+        for i, (t, r) in enumerate(zip(tracks, results, strict=True)):
+            if i == ref_i or not r["synced"]:
+                continue
+            drift = sync_mod.measure_drift(monos[ref_i], monos[i], sr, r["offset_s"])
+            if drift is not None and abs(drift) > 20:
+                t["audio"] = sync_mod.correct_drift(t["audio"], drift)
+                monos[i] = t["audio"].mean(axis=0).astype(np.float64)
+                rationale.append(f"'{t['name']}': klokdrift {drift:+.0f} ppm "
+                                 "gecorrigeerd.")
+                corrected = True
+        if corrected:
+            results = sync_mod.sync_all(monos, sr, ref_i)
+
+    for i, (t, r) in enumerate(zip(tracks, results, strict=True)):
+        conf = r["confidence"]
+        drift = (sync_mod.measure_drift(monos[ref_i], monos[i], sr, r["offset_s"])
+                 if r["synced"] and i != ref_i else None)
+        t.update(offset_s=round(float(r["offset_s"]), 4),
+                 confidence=round(conf, 1) if conf is not None else None,
+                 synced=bool(r["synced"]),
+                 drift_ppm=round(drift, 1) if drift is not None else None)
         if i == ref_i:
-            t.update(offset_s=0.0, confidence=None, synced=True, drift_ppm=None)
             continue
-        mono = t["audio"].mean(axis=0).astype(np.float64)
-        offset, conf = sync_mod.measure_offset(ref_mono, mono, sr)
-        synced = conf >= sync_mod._CONF_SYNCED
-        drift = (sync_mod.measure_drift(ref_mono, mono, sr, offset)
-                 if synced else None)
-        if synced and correct_drift and drift is not None and abs(drift) > 20:
-            t["audio"] = sync_mod.correct_drift(t["audio"], drift)
-            mono = t["audio"].mean(axis=0).astype(np.float64)
-            offset, conf = sync_mod.measure_offset(ref_mono, mono, sr)
-            residual = sync_mod.measure_drift(ref_mono, mono, sr, offset)
-            rationale.append(f"'{t['name']}': klokdrift {drift:+.0f} ppm "
-                             f"gecorrigeerd (rest: {residual or 0:+.0f} ppm).")
-            drift = residual
-        t.update(offset_s=round(float(offset), 4), confidence=round(float(conf), 1),
-                 synced=bool(synced), drift_ppm=(round(drift, 1)
-                                                 if drift is not None else None))
-        if synced:
-            rationale.append(f"'{t['name']}': offset {offset:+.3f} s "
-                             f"(confidence {conf:.1f}"
+        if t["synced"]:
+            rationale.append(f"'{t['name']}': offset {t['offset_s']:+.3f} s "
+                             f"(confidence {t['confidence']:.1f}"
                              + (f", drift {drift:+.0f} ppm" if drift else "") + ").")
         else:
             rationale.append(f"'{t['name']}': GEEN gedeelde audio gevonden "
-                             f"(confidence {conf:.1f}) — niet verschoven; staat "
-                             "op 0 in de sessie.")
+                             f"(confidence {t['confidence']:.1f}) — niet "
+                             "verschoven; staat op 0 in de sessie.")
 
     tracks, total = sync_mod.align_tracks(tracks, sr)
     unaligned = sync_mod.mixdown([t["audio"] for t in tracks])
