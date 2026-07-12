@@ -453,6 +453,24 @@ def _step_tilt_eq(x, sr, tilt_db: float = 0.0, pivot_hz: float = 650.0):
     return utility.tilt_eq(x, sr, tilt_db, pivot_hz)
 
 
+def _step_time_stretch(x, sr, rate: float = 1.0):
+    from chat_with_audio.dsp import timepitch
+
+    return timepitch.time_stretch(x, sr, rate)
+
+
+def _step_pitch_shift(x, sr, semitones: float = 0.0, preserve_formants: bool = False):
+    from chat_with_audio.dsp import timepitch
+
+    return timepitch.pitch_shift(x, sr, semitones, preserve_formants)
+
+
+def _step_varispeed(x, sr, rate: float = 1.0):
+    from chat_with_audio.dsp import timepitch
+
+    return timepitch.varispeed(x, sr, rate)
+
+
 def _step_tone_slate(x, sr, tone_s: float = 10.0, level_db: float = -18.0,
                      freq: float = 1000.0, gap_s: float = 1.0):
     from chat_with_audio.dsp import utility
@@ -504,6 +522,9 @@ STEP_REGISTRY = {
     "tilt_eq": _step_tilt_eq,
     "tone_slate": _step_tone_slate,
     "two_pop": _step_two_pop,
+    "time_stretch": _step_time_stretch,
+    "pitch_shift": _step_pitch_shift,
+    "varispeed": _step_varispeed,
 }
 
 

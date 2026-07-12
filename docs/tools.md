@@ -267,10 +267,14 @@ step objects live inside recipes. Available types:
 | `bass_mono` | mono the low end (LR4 split) | `freq` (120) |
 | `tone_slate` | broadcast leader: ref tone + gap | `tone_s` (10), `level_db` (−18), `freq` (1000), `gap_s` (1) |
 | `two_pop` | sync pop before programme | `offset_s` (2), `pop_ms` (42), `level_db` (−18) |
+| `time_stretch` | duration without pitch (phase vocoder, peak-locked) | `rate` (1.25 = 25% faster/shorter; ~0.5–2.0 usable) |
+| `pitch_shift` | pitch without duration | `semitones` (±24), `preserve_formants` (False; True keeps the voice character — no Mickey Mouse) |
+| `varispeed` | tape-style: tempo + pitch together | `rate` (1.05 = 5% faster and higher) |
 
-Note on `trim`, `insert_silence`, `tone_slate` and `two_pop`: these change the
-file's length/offset, so put them at the very end of a chain (after
-loudness), and expect the viewer A/B to drift past the edit point.
+Note on `trim`, `insert_silence`, `tone_slate`, `two_pop`, `time_stretch`
+and `varispeed`: these change the file's length/offset, so put them at the
+very end of a chain (after loudness), and expect the viewer A/B to drift
+past the edit point.
 
 16-bit export is TPDF-dithered automatically (high-passed dither, so the
 quantization noise lands where the ear is least sensitive); pass
