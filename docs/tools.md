@@ -112,6 +112,32 @@ or next to programme — not for conjuring back lost words.
 
 ---
 
+## Edit (text-first)
+
+### `edit_speech(file_path, remove_fillers=True, remove_doubles=True, tighten_pauses_to_s=None, remove_text=None, bleep_text=None, bleep_style="tone", language="nl", model_size="small", apply=True, crossfade_ms=12, out_path=None)`
+Text-based dialogue editing: *"haal de uhs eruit en maak de pauzes
+strakker."* Transcribes with word-level timestamps (Whisper, `asr` extra),
+then edits on the transcript:
+
+- `remove_fillers` — filler sounds (eh/uh/ehm/uhm…, per-language lexicon)
+- `remove_doubles` — immediate word doubles ("ik ik ga"): the first
+  instance goes, the final delivery stays
+- `tighten_pauses_to_s` — shorten every inter-word pause to this maximum;
+  the head and tail of each pause survive, so breathing room stays real
+- `remove_text=["frase", …]` — cut phrases by transcript text (all
+  occurrences, punctuation/case-insensitive)
+- `bleep_text=["naam", …]` — redact words with a 1 kHz bleep
+  (`bleep_style="mute"` silences instead); length-neutral
+
+Every joint gets a raised-cosine crossfade. Cuts shorten the file, so the
+A/B in the viewer drifts after the first cut — the timeline lane shows the
+cuts on the original timeline, and `export_markers` turns the cut list into
+DAW markers. `apply=False` returns the edit plan only (with transcript
+context per cut) so you can confirm before committing; the result also
+reports phrases that were *not* found in the transcript.
+
+---
+
 ## Multitrack (the 32-track recorder)
 
 ### `sync_tracks(file_paths | dir_path, reference=None, correct_drift=False, out_dir=None)`

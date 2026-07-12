@@ -894,6 +894,111 @@ def transcribe_audio(file_path: str, model_size: str = "small", language: str = 
 
 
 @mcp.tool()
+def edit_speech(file_path: str, remove_fillers: bool = True, remove_doubles: bool = True,
+                tighten_pauses_to_s: float | None = None,
+                remove_text: list[str] | None = None,
+                bleep_text: list[str] | None = None, bleep_style: str = "tone",
+                language: str = "nl", model_size: str = "small",
+                apply: bool = True, crossfade_ms: float = 12.0,
+                out_path: str | None = None, user_request: str = "") -> dict:
+    """Tekstgestuurd dialoogmonteren: "haal de uhs eruit en maak de pauzes strakker".
+
+    Transcribeert met woordtijdstempels (Whisper, [asr]-extra) en monteert dan
+    op tekstniveau:
+      remove_fillers      — stopwoorden (eh/uh/ehm/uhm ...) eruit
+      remove_doubles      — directe woordverdubbelingen ("ik ik ga") eruit
+      tighten_pauses_to_s — pauzes tussen woorden inkorten tot dit maximum (s)
+      remove_text         — frases knippen op transcript-tekst (alle voorkomens)
+      bleep_text          — woorden/frases bliepen (tone) of dempen (bleep_style
+                            "mute") — lengte-neutraal, voor redactie/privacy
+    Elke knip krijgt een raised-cosine-crossfade; knips maken het bestand
+    korter (A/B in de viewer loopt na de eerste knip dus uit de pas — de
+    tijdlijnbalk toont de knips op de oorspronkelijke tijdlijn). Met
+    apply=False krijg je alleen het montageplan (met transcriptcontext per
+    knip) om eerst voor te leggen; daarna nog eens draaien met apply=True.
+    De kniplijst is via export_markers als DAW-markers te exporteren.
+    """
+    from chat_with_audio import asr, speech_edit
+    from chat_with_audio.segments import classify_segments
+
+    if not asr.is_available():
+        raise RuntimeError(asr.INSTALL_HINT)
+    x, sr = io.load_audio(file_path)
+    dur = x.shape[1] / sr
+    tr = asr.transcribe_words(x, sr, model_size=model_size, language=language)
+    edits, missing = speech_edit.plan_edits(
+        tr["words"], dur, language=language, remove_fillers=remove_fillers,
+        remove_doubles=remove_doubles, tighten_pauses_to_s=tighten_pauses_to_s,
+        remove_text=remove_text, bleep_text=bleep_text)
+
+    plan_regions = [{"kind": "bleep" if e["action"] == "bleep" else
+                     ("pause" if e.get("reason") == "pause" else "cut"),
+                     "label": e["label"], "start_s": round(e["start_s"], 3),
+                     "end_s": round(e["end_s"], 3)} for e in edits]
+    base = {
+        "transcript": tr["text"],
+        "words": len(tr["words"]),
+        "plan": [{k: e[k] for k in ("action", "start_s", "end_s", "label", "context")}
+                 for e in edits],
+        "phrases_not_found": missing,
+    }
+    if missing:
+        base["hint_missing"] = ("Niet in het transcript gevonden; check de spelling "
+                                "tegen 'transcript' hierboven.")
+
+    if not edits:
+        return {**base, "message": "Niets te monteren: geen stopwoorden, "
+                "verdubbelingen, lange pauzes of gezochte frases gevonden."}
+
+    m0 = analysis.analyze(x, sr)
+    segs = classify_segments(x, sr)
+    if not apply:
+        session = sessions.create_session(
+            file_path, x, sr, m0, label=f"{Path(file_path).name} — montageplan",
+            user_request=user_request or None,
+            timeline={"segments": segs, "regions": plan_regions})
+        return {**base, "applied": False, "session_id": session["session_id"],
+                "viewer_url": _viewer_url(session["session_id"]),
+                "hint": "Plan-modus: niets gemonteerd. De tijdlijn in de viewer "
+                        "toont de voorgenomen knips; apply=True voert ze uit."}
+
+    y, report = speech_edit.apply_edits(x, sr, edits, crossfade_ms=crossfade_ms,
+                                        bleep_style=bleep_style)
+    m1 = analysis.analyze(y, sr)
+    chain_steps = [{"type": "speech_edit", "action": e["action"],
+                    "start_s": e["start_s"], "end_s": e["end_s"],
+                    "label": e["label"]} for e in report["edits"]]
+    rationale = [f"Tekstmontage: {report['cuts']} knip(s) en {report['bleeps']} "
+                 f"bliep(s); {report['removed_s']}s verwijderd "
+                 f"({report['duration_before_s']}s → {report['duration_after_s']}s).",
+                 "Elke lasnaad heeft een raised-cosine-crossfade van "
+                 f"{crossfade_ms:.0f} ms."]
+    session = sessions.create_session(
+        file_path, x, sr, m0, y, m1, chain_steps, rationale, None,
+        label=f"{Path(file_path).name} — tekstmontage",
+        user_request=user_request or None,
+        asr_report={"text": tr["text"], "language": tr["language"]},
+        timeline={"segments": segs, "regions": plan_regions})
+    result = {
+        **base,
+        "applied": True,
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "report": {k: report[k] for k in ("removed_s", "duration_before_s",
+                                          "duration_after_s", "cuts", "bleeps")},
+        "rationale": rationale,
+        "hint": "Let op: het resultaat is korter dan het origineel, dus de A/B in "
+                "de viewer loopt na de eerste knip uit de pas. export_markers "
+                "exporteert de knips als DAW-markers.",
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def view_audio(session_id: str | None = None, file_path: str | None = None):
     """Render het perceptuele vergelijkingspaneel als afbeelding, zodat de AI kan
     ZIEN wat mensen zullen horen.
