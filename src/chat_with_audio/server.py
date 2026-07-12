@@ -976,6 +976,61 @@ def export_to_audition(session_id: str | None = None, file_path: str | None = No
 
 
 @mcp.tool()
+def spectral_repair(file_path: str, start_s: float, end_s: float,
+                    low_hz: float | None = None, high_hz: float | None = None,
+                    out_path: str | None = None, user_request: str = "") -> dict:
+    """Spectrale reparatie ('painting'): poets een kuch, stoelpiep, tik of
+    bons weg door die tijd-frequentieplek opnieuw te schilderen vanuit de
+    omgeving.
+
+    Geef het tijdvak (start_s-end_s, max 5 s) en optioneel de frequentieband
+    (low_hz-high_hz; weglaten = volledige band). De magnitudes in de patch
+    worden per bin geinterpoleerd tussen de context links en rechts; buiten
+    de patch blijft alles bit-voor-bit onaangetast. Vind de plek met
+    view_audio (verticale strepen/vlekken in het spectrogram) of op het
+    gehoor via de viewer. Voor schade óver of naast programma — niet om
+    verloren woorden terug te toveren (dat zegt het rapport er eerlijk bij).
+    """
+    from chat_with_audio.dsp.spectral_repair import spectral_repair as _repair
+    from chat_with_audio.regions import fmt_ts
+
+    x, sr = io.load_audio(file_path)
+    m0 = analysis.analyze(x, sr)
+    y = _repair(x, sr, start_s, end_s, low_hz=low_hz, high_hz=high_hz)
+    m1 = analysis.analyze(y, sr)
+    band = (f"{low_hz or 0:.0f}-{high_hz:.0f} Hz" if high_hz
+            else ("volledige band" if not low_hz else f"vanaf {low_hz:.0f} Hz"))
+    rationale = [f"Spectrale reparatie {fmt_ts(start_s)}-{fmt_ts(end_s)} ({band}): "
+                 "magnitudes per bin geinterpoleerd uit de context links en rechts; "
+                 "alles buiten de patch bit-voor-bit onaangetast.",
+                 "Kanttekening: painting over doorlopende spraak vervaagt de spraak "
+                 "zelf; dit gereedschap is voor schade over/naast het programma."]
+    session = sessions.create_session(
+        file_path, x, sr, m0, y, m1,
+        [{"type": "spectral_repair", "start_s": start_s, "end_s": end_s,
+          "low_hz": low_hz, "high_hz": high_hz}],
+        rationale, None, label=f"{Path(file_path).name} — spectral repair",
+        user_request=user_request or None,
+        timeline={"segments": [],
+                  "regions": [{"kind": "repair", "label": f"painting {band}",
+                               "start_s": round(float(start_s), 2),
+                               "end_s": round(float(end_s), 2)}]})
+    result = {
+        "session_id": session["session_id"],
+        "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
+        "viewer_url": _viewer_url(session["session_id"]),
+        "rationale": rationale,
+        "deltas": session["deltas"],
+        "hint": "Beluister de R-knop (residu) in de viewer: dat is exact wat er "
+                "is weggepoetst.",
+    }
+    if out_path:
+        wav = sessions.session_path(session["session_id"]) / "processed.wav"
+        result["export_path"] = str(io.encode_wav_to(wav, out_path))
+    return result
+
+
+@mcp.tool()
 def fill_room_tone(file_path: str, out_path: str | None = None,
                    user_request: str = "") -> dict:
     """Vul digitale gaten met de room tone van de opname zelf (dialoogbewerking).

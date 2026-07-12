@@ -98,6 +98,7 @@ canvas { width: 100%; display: block; background: var(--panel2); border-radius: 
 .reg-noise { background: var(--reg-noise); border-radius: 3px; }
 .reg-clip { background: var(--reg-clip); border-radius: 3px; }
 .reg-boom { background: var(--reg-boom); border-radius: 3px; }
+.reg-repair { background: #b58ee0; border-radius: 3px; }
 #tl-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 6px 0 0 64px;
   color: var(--muted); font-size: 11px; }
 #tl-legend .sw { display: inline-block; width: 9px; height: 9px; border-radius: 3px;
