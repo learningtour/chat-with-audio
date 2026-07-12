@@ -84,6 +84,37 @@ def test_duck_music_rides_bed_under_speech_level(sr):
     assert np.array_equal(x[:, :int(7.0 * sr)], y[:, :int(7.0 * sr)])
 
 
+def test_sidechain_gain_ducks_and_releases(sr):
+    """Vocals aan: gain naar duck-niveau (snelle attack); pauze: terug naar
+    1.0 met trage release."""
+    t = np.arange(sr * 6) / sr
+    vocals = (0.2 * np.sin(2 * np.pi * 300 * t)
+              * ((t >= 1.0) & (t < 3.0))).astype(np.float32)[None, :]
+    g = dialogue.sidechain_gain(vocals, sr, duck_db=6.0,
+                                attack_ms=15.0, release_ms=250.0)
+    target = 10 ** (-6 / 20)
+    # ruim binnen het actieve stuk: op duck-niveau
+    assert abs(g[int(2.0 * sr)] - target) < 0.02
+    # vóór de inzet: (vrijwel) open
+    assert g[int(0.5 * sr)] > 0.97
+    # attack is snel: 100 ms na de inzet al vrijwel op duck-niveau
+    assert g[int(1.1 * sr)] < target + 0.06
+    # release is traag: 100 ms na het einde nog duidelijk gedoken
+    assert g[int(3.1 * sr)] < 0.8
+    # maar na 1.5 s weer open
+    assert g[int(4.5 * sr)] > 0.9
+    # envelope is glad: geen sprongen
+    assert np.abs(np.diff(g)).max() < 0.002
+
+
+def test_duck_music_rejects_unknown_mode(sr):
+    import pytest
+
+    x = np.zeros((1, sr), dtype=np.float32)
+    with pytest.raises(ValueError, match="beds|stems"):
+        dialogue.duck_music(x, sr, mode="magisch")
+
+
 def test_dialogue_steps_available_in_chain(sr):
     from chat_with_audio.chain import STEP_REGISTRY, run_chain
 

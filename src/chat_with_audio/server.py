@@ -229,9 +229,9 @@ def apply_chain(file_path: str, steps: list[dict], out_path: str | None = None,
         (ademhalingen dempen, niet wegknippen — dialoogbewerking)
       {"type": "deplosive", "cutoff_hz": 120, "sensitivity_db": 6}
         (p/b-pops: alleen de laagfrequente stoot zelf wordt gehighpasst)
-      {"type": "duck_music", "gap_db": 6}
-        (muziekbedden tussen de spraak naar gap_db onder het spraakniveau;
-         voor muziek ónder spraak: rebalance_music)
+      {"type": "duck_music", "gap_db": 6, "mode": "beds"|"stems"}
+        (beds = muziekbedden tussen de spraak omlaag; stems = echte
+         sidechain-ducking voor muziek ónder spraak via Demucs, [stems]-extra)
 
     Tip: sluit af met een limiter of loudness_normalize als eerdere stappen het
     niveau verhogen.

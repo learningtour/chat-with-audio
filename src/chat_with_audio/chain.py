@@ -295,11 +295,15 @@ def _step_deplosive(x, sr, cutoff_hz: float = 120.0, sensitivity_db: float = 6.0
     return y
 
 
-def _step_duck_music(x, sr, gap_db: float = 6.0, fade_ms: float = 120.0):
-    """Muziekbedden naar gap_db onder het spraakniveau rijden (alleen omlaag)."""
+def _step_duck_music(x, sr, gap_db: float = 6.0, fade_ms: float = 120.0,
+                     mode: str = "beds", attack_ms: float = 15.0,
+                     release_ms: float = 250.0):
+    """Muziek onder het spraakniveau: mode=beds (bedden tussen de spraak) of
+    mode=stems (sidechain via Demucs, voor muziek ónder spraak)."""
     from chat_with_audio.dsp.dialogue import duck_music
 
-    y, info = duck_music(x, sr, gap_db=gap_db, fade_ms=fade_ms)
+    y, info = duck_music(x, sr, gap_db=gap_db, fade_ms=fade_ms, mode=mode,
+                         attack_ms=attack_ms, release_ms=release_ms)
     log.info("duck_music: %s", info)
     return y
 

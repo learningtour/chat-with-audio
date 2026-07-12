@@ -147,14 +147,75 @@ def deplosive(x: np.ndarray, sr: int, cutoff_hz: float = 120.0,
     return y, fixed
 
 
-def duck_music(x: np.ndarray, sr: int, gap_db: float = 6.0,
-               fade_ms: float = 120.0) -> tuple[np.ndarray, dict]:
-    """Rijd muziekbedden naar gap_db onder het spraakniveau (alleen omlaag).
+def sidechain_gain(vocals: np.ndarray, sr: int, duck_db: float = 6.0,
+                   attack_ms: float = 15.0, release_ms: float = 250.0,
+                   floor_db: float = -45.0) -> np.ndarray:
+    """Sample-nauwkeurige duck-envelope gestuurd door de vocals: 10^(-duck/20)
+    waar gezongen/gesproken wordt, terug naar 1.0 in de pauzes. Attack snel
+    (wegduiken vóór het woord er is), release traag (geen gepomp)."""
+    mono = vocals.mean(axis=0) if vocals.ndim == 2 else vocals
+    n = mono.shape[0]
+    flen = max(1, int(sr * 0.01))
+    nf = max(1, n // flen)
+    lv = 10.0 * np.log10((mono[: nf * flen].reshape(nf, flen) ** 2).mean(axis=1) + 1e-20)
+    target = np.where(lv > floor_db, 10.0 ** (-abs(duck_db) / 20.0), 1.0)
 
-    Werkt op segmentniveau: intro's, outro's en bedden tussen de spraak. Voor
-    muziek die tegelijk mét spraak klinkt is stems-scheiding nodig
-    (rebalance_music). Geeft (audio, info met per bed de toegepaste demping).
+    frame_ms = 10.0
+    a_att = float(np.exp(-frame_ms / max(attack_ms, 1e-3)))
+    a_rel = float(np.exp(-frame_ms / max(release_ms, 1e-3)))
+    g = np.empty(nf)
+    c = 1.0
+    for i, tgt in enumerate(target):
+        coef = a_att if tgt < c else a_rel
+        c = coef * c + (1.0 - coef) * tgt
+        g[i] = c
+    centers = np.arange(nf) * flen + flen / 2.0
+    return np.interp(np.arange(n), centers, g)
+
+
+def _duck_music_stems(x2: np.ndarray, sr: int, duck_db: float,
+                      attack_ms: float, release_ms: float) -> tuple[np.ndarray, dict]:
+    """Echte sidechain-ducking voor muziek ónder spraak: Demucs scheidt
+    vocals van de rest, de vocals-envelope duwt de begeleiding omlaag, remix."""
+    from chat_with_audio.dsp import stems as stems_mod
+
+    if not stems_mod.is_available():
+        raise RuntimeError(stems_mod.INSTALL_HINT)
+    parts = stems_mod.separate(x2, sr)
+    vocals = parts.get("vocals")
+    if vocals is None:
+        raise RuntimeError("Demucs gaf geen vocals-stem terug.")
+    rest = np.zeros_like(x2, dtype=np.float64)
+    for name, part in parts.items():
+        if name != "vocals":
+            rest += part.astype(np.float64)
+    g = sidechain_gain(vocals, sr, duck_db=duck_db,
+                       attack_ms=attack_ms, release_ms=release_ms)
+    y = (vocals.astype(np.float64) + rest * g[None, :]).astype(np.float32)
+    active_pct = float((g < 0.9).mean() * 100)
+    log.info("duck_music[stems]: begeleiding %0.0f%% van de tijd gedoken", active_pct)
+    return y, {"mode": "stems", "duck_db": float(duck_db),
+               "ducked_pct": round(active_pct, 1)}
+
+
+def duck_music(x: np.ndarray, sr: int, gap_db: float = 6.0,
+               fade_ms: float = 120.0, mode: str = "beds",
+               attack_ms: float = 15.0,
+               release_ms: float = 250.0) -> tuple[np.ndarray, dict]:
+    """Muziek onder het spraakniveau brengen. Twee modi:
+
+    mode="beds" (licht, standaard): rijdt muziekbedden tússen de spraak
+    (intro's/outro's/bedden) naar gap_db onder het gemeten spraakniveau —
+    segmentniveau, alleen omlaag.
+    mode="stems" (zwaar, vereist het [stems]-extra): echte sidechain-ducking
+    voor muziek die tegelijk mét de spraak klinkt — Demucs scheidt de vocals,
+    hun envelope duwt de begeleiding gap_db omlaag met attack/release.
     """
+    x2m = x[None, :] if x.ndim == 1 else x
+    if mode == "stems":
+        return _duck_music_stems(x2m, sr, gap_db, attack_ms, release_ms)
+    if mode != "beds":
+        raise ValueError(f"Onbekende mode '{mode}' (beds|stems).")
     from chat_with_audio.segments import classify_segments
 
     x2 = x[None, :] if x.ndim == 1 else x
