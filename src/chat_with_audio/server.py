@@ -1158,6 +1158,91 @@ def qc_report(file_path: str, spec: str | None = None,
 
 
 @mcp.tool()
+def qc_folder(dir_path: str, spec: str | None = None,
+              out_path: str | None = None) -> dict:
+    """Keur een hele map audio in één keer (inkomende leveringen, archieven).
+
+    Per bestand: volledige analyse + bevindingen en optioneel de spec-check
+    (zie check_compliance). Het resultaat is een samenvattingstabel per
+    bestand — duur, loudness, true peak, score, bevindingen, verdict — plus
+    de markdown-index (out_path schrijft die weg). Bestanden die niet laden
+    komen als fout in de tabel in plaats van de batch te breken. Voor een
+    diepe sheet per bestand: qc_report.
+    """
+    from chat_with_audio import compliance as comp
+
+    d = Path(dir_path).expanduser()
+    if not d.is_dir():
+        raise ValueError(f"Geen map: {d}")
+    files = sorted(p for p in d.iterdir()
+                   if p.suffix.lower() in _AUDIO_EXTS and not p.name.startswith("."))
+    if not files:
+        raise ValueError(f"Geen audiobestanden gevonden in {d}")
+    dialogue_gated = bool(spec) and comp.SPECS.get(spec, {}).get("gating") == "dialogue"
+
+    rows: list[dict] = []
+    for p in files:
+        try:
+            x, sr = io.load_audio(p)
+            m = analysis.analyze(x, sr)
+            scores, issues = analysis.score_and_issues(m)
+            rep = None
+            if spec:
+                dlg = None
+                if dialogue_gated:
+                    from chat_with_audio.segments import classify_segments
+
+                    dlg = comp.dialogue_loudness(x, sr, classify_segments(x, sr))
+                rep = comp.check(m, spec, dialogue_lufs=dlg)
+            high = [i for i in issues if i["severity"] == "high"]
+            rows.append({
+                "file": p.name,
+                "duration_s": m["duration_s"],
+                "lufs": m.get("lufs_integrated"),
+                "true_peak_dbtp": m.get("true_peak_dbtp"),
+                "score": scores["overall"],
+                "issues": len(issues),
+                "high_issues": [i["code"] for i in high],
+                "compliance_passed": rep["passed"] if rep else None,
+                "failed_checks": rep["failed_checks"] if rep else None,
+            })
+        except Exception as exc:
+            log.warning("qc_folder: %s faalde: %s", p.name, exc)
+            rows.append({"file": p.name, "error": str(exc)})
+
+    spec_name = comp.SPECS[spec]["name"] if spec else None
+    lines = [f"# QC-index — {d.name}", "",
+             f"_{len(rows)} bestand(en)"
+             + (f", gekeurd tegen {spec_name}" if spec else "") + "._", "",
+             "| Bestand | Duur | LUFS | TP (dBTP) | Score | Bevindingen | Verdict |",
+             "|---|---|---|---|---|---|---|"]
+    for r in rows:
+        if "error" in r:
+            lines.append(f"| {r['file']} | — | — | — | — | — | ⚠️ fout: {r['error'][:60]} |")
+            continue
+        if r["compliance_passed"] is True:
+            verdict = "✅ geslaagd"
+        elif r["compliance_passed"] is False:
+            verdict = "❌ " + ", ".join(r["failed_checks"][:3])
+        elif r["high_issues"]:
+            verdict = "🔴 " + ", ".join(r["high_issues"][:3])
+        else:
+            verdict = "—"
+        lines.append(f"| {r['file']} | {r['duration_s']} s | {r['lufs']} | "
+                     f"{r['true_peak_dbtp']} | {r['score']} | {r['issues']} | {verdict} |")
+    index_md = "\n".join(lines) + "\n"
+
+    result = {"count": len(rows), "rows": rows, "spec": spec,
+              "summary_markdown": index_md}
+    if out_path:
+        out = Path(out_path).expanduser()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(index_md)
+        result["export_path"] = str(out)
+    return result
+
+
+@mcp.tool()
 def open_viewer(session_id: str | None = None) -> dict:
     """Open de lokale A/B-viewer in de browser (start hem zo nodig).
 

@@ -11,7 +11,7 @@ EXPECTED = {"analyze_audio", "improve_audio", "reduce_noise", "normalize_loudnes
             "list_sessions", "open_viewer", "smart_edit",
             "list_recipes", "save_recipe", "apply_recipe",
             "check_compliance", "master_for", "export_markers",
-            "fill_room_tone", "qc_report", "spectral_repair"}
+            "fill_room_tone", "qc_report", "spectral_repair", "qc_folder"}
 
 
 def test_tool_registry():
@@ -178,6 +178,31 @@ def test_qc_report_tool(tmp_path, noisy_wav):
     res2 = server.qc_report(str(noisy_wav))
     assert res2["passed_compliance"] is None
     assert "Aflever-check" not in res2["report_markdown"]
+
+
+def test_qc_folder_tool(tmp_path, sr, noisy_bursts):
+    import numpy as np
+    import soundfile as sf
+
+    d = tmp_path / "leveringen"
+    d.mkdir()
+    sf.write(str(d / "ruw.wav"), noisy_bursts, sr)
+    t = np.arange(sr * 4) / sr
+    sf.write(str(d / "netjes.wav"),
+             (0.12 * np.sin(2 * np.pi * 440 * t)).astype(np.float32), sr)
+    (d / "kapot.wav").write_text("dit is geen audio")
+
+    res = server.qc_folder(str(d), spec="apple-podcast",
+                           out_path=str(tmp_path / "index.md"))
+    assert res["count"] == 3
+    by_name = {r["file"]: r for r in res["rows"]}
+    assert "error" in by_name["kapot.wav"]
+    assert by_name["ruw.wav"]["compliance_passed"] is False
+    md = res["summary_markdown"]
+    assert "ruw.wav" in md and "netjes.wav" in md and "fout" in md
+    from pathlib import Path
+
+    assert Path(res["export_path"]).read_text() == md
 
 
 def test_smart_edit_clean_file_does_nothing(tmp_path, sr):
