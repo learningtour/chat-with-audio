@@ -90,14 +90,17 @@ loudness match. Keeps episodes and recording days consistent.
 
 ## Surgical (only where something is wrong)
 
-### `smart_edit(file_path, problems="auto", denoise_method="auto", out_path=None)`
+### `smart_edit(file_path, problems="auto", denoise_method="auto", verify=True, out_path=None)`
 AI finds problem regions on the timeline and treats **only** those, with
 crossfades; everything outside stays bit-for-bit untouched. Detectors: `hum`
 (intermittent mains hum → notches), `noise` (noise floor rising above the
 file's cleanest ambience → denoise), `clip` (clip clusters → declip),
 `boom` (low-frequency rumble → low cut). See
 [Smart regions](smart-regions.md). The region map becomes a timeline in the
-viewer and can be exported as DAW markers.
+viewer and can be exported as DAW markers. **Second pass**: with `verify`
+on (default), the detectors re-run on the result and the report says
+honestly which regions are truly clean and where a residue remains
+(`verification.remaining`, with before/after severity).
 
 ### `repair_audio(file_path, declip=True, declick=True, out_path=None)`
 Restoration only: declip (spline waveform reconstruction, also for 32-bit

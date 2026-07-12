@@ -226,8 +226,14 @@ def plan_region_fixes(regions: list[dict], sr: int, ai_available: bool = False,
         span = f"{fmt_ts(r['start_s'])}–{fmt_ts(r['end_s'])}"
         if r["kind"] == "hum":
             f0 = r["freq"]
-            r["steps"] = [{"type": "notch", "freq": f0 * h, "q": 30.0}
-                          for h in (1, 2, 3) if f0 * h < sr / 2 - 100]
+            # dubbele notch op Q 15 in plaats van één op Q 30: een brom die
+            # áán springt (koelkast) lekt door de resonantie-transient van een
+            # hoge-Q-notch heen; twee lagere-Q-notches ringen korter én dempen
+            # dieper — gemeten: enkel Q30 liet ~15 dB onset-lek achter, 2×Q15
+            # is schoon in de tweede meetpas
+            r["steps"] = [{"type": "notch", "freq": f0 * h, "q": 15.0}
+                          for h in (1, 2, 3) if f0 * h < sr / 2 - 100
+                          for _rep in (0, 1)]
             r["label"] = f"netbrom {f0:.0f} Hz (+{r['severity_db']} dB)"
             rationale.append(f"{span}: netbrom rond {f0:.0f} Hz "
                              f"(+{r['severity_db']} dB) — notch-filters alleen hier.")

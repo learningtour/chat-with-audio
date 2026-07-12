@@ -9,8 +9,12 @@
 
 namespace ait {
 
+// Coefficients and filter state are double precision on purpose: a mains-hum
+// notch (50 Hz, Q 30) at 44.1/48 kHz puts the poles so close to z = 1 that
+// float32 coefficient rounding audibly detunes the notch (measured: ~15 dB of
+// a 37 dB hum survived). I/O stays float32; only the recursion is double.
 struct BiquadCoeffs {
-    float b0, b1, b2, a1, a2;  // normalized (a0 == 1)
+    double b0, b1, b2, a1, a2;  // normalized (a0 == 1)
 };
 
 // RBJ Audio EQ Cookbook designs. gain_db is only used by peaking/shelf types.
@@ -55,19 +59,19 @@ inline BiquadCoeffs design_biquad(const std::string& type, double sr, double fre
         throw std::invalid_argument("unknown biquad type: " + type);
     }
 
-    return {float(b0 / a0), float(b1 / a0), float(b2 / a0), float(a1 / a0), float(a2 / a0)};
+    return {b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0};
 }
 
 class Biquad {
 public:
     explicit Biquad(const BiquadCoeffs& c) : c_(c) {}
 
-    // Transposed direct form II.
+    // Transposed direct form II; double recursion, float32 I/O.
     inline float process(float x) {
-        const float y = c_.b0 * x + z1_;
+        const double y = c_.b0 * x + z1_;
         z1_ = c_.b1 * x - c_.a1 * y + z2_;
         z2_ = c_.b2 * x - c_.a2 * y;
-        return y;
+        return float(y);
     }
 
     void process_block(float* buf, size_t n) {
@@ -76,7 +80,7 @@ public:
 
 private:
     BiquadCoeffs c_;
-    float z1_ = 0.0f, z2_ = 0.0f;
+    double z1_ = 0.0, z2_ = 0.0;
 };
 
 }  // namespace ait

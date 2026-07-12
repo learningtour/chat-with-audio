@@ -649,7 +649,8 @@ def repair_audio(file_path: str, declip: bool = True, declick: bool = True,
 
 @mcp.tool()
 def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "auto",
-               out_path: str | None = None, user_request: str = "") -> dict:
+               verify: bool = True, out_path: str | None = None,
+               user_request: str = "") -> dict:
     """Chirurgische bewerking: AI vindt probleemregio's en behandelt alléén die delen.
 
     Waar improve_audio het hele bestand mastert, zoekt smart_edit op de tijdlijn
@@ -663,6 +664,8 @@ def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "au
     hum,noise,clip,boom. denoise_method: auto|spectral|ai (voor ruisregio's die
     spraak raken). De regiokaart staat als tijdlijn in de viewer en in het
     resultaat, met per regio de tijden, de diagnose en de toegepaste fix.
+    verify (tweede pas): draai de detectoren opnieuw op het resultaat en
+    rapporteer eerlijk welke regio's echt weg zijn en waar nog iets rest.
     """
     from chat_with_audio import regions as regions_mod
     from chat_with_audio.segments import classify_segments
@@ -695,6 +698,25 @@ def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "au
     y, applied = regions_mod.apply_regions(x, sr, planned)
     m1 = analysis.analyze(y, sr)
 
+    verification = None
+    if verify:
+        # tweede pas: dezelfde detectoren op het resultaat — is het echt weg?
+        left = regions_mod.detect_regions(y, sr, segments=segs)
+        remaining = []
+        for r in applied:
+            residue = [q for q in left if q["kind"] == r["kind"]
+                       and q["start_s"] < r["end_s"] and q["end_s"] > r["start_s"]]
+            if residue:
+                worst = max(residue, key=lambda q: q.get("severity_db") or 0)
+                remaining.append({
+                    "kind": r["kind"], "start_s": round(r["start_s"], 2),
+                    "end_s": round(r["end_s"], 2),
+                    "severity_db_before": r.get("severity_db"),
+                    "severity_db_after": worst.get("severity_db")})
+        verification = {"treated": len(applied),
+                        "resolved": len(applied) - len(remaining),
+                        "remaining": remaining}
+
     region_summary = [{"kind": r["kind"], "label": r.get("label", r["kind"]),
                        "start_s": round(r["start_s"], 2), "end_s": round(r["end_s"], 2),
                        "severity_db": r.get("severity_db")} for r in applied]
@@ -703,6 +725,17 @@ def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "au
                     "steps": r["steps"]} for r in applied]
     rationale = [f"Chirurgische bewerking: {len(applied)} regio('s) behandeld, "
                  "alles daarbuiten bit-voor-bit onaangetast."] + rationale
+    if verification:
+        if verification["remaining"]:
+            rationale.append(
+                f"Tweede pas (verificatie): {verification['resolved']} van de "
+                f"{verification['treated']} regio's zijn schoon; "
+                f"{len(verification['remaining'])} regio('s) laten nog een rest "
+                "horen — zie 'verification' voor waar en hoeveel.")
+        else:
+            rationale.append(
+                f"Tweede pas (verificatie): alle {verification['treated']} "
+                "behandelde regio's zijn na afloop opnieuw gemeten en schoon.")
     session = sessions.create_session(
         file_path, x, sr, m0, y, m1, chain_steps, rationale, None,
         label=f"{Path(file_path).name} — chirurgisch",
@@ -713,6 +746,7 @@ def smart_edit(file_path: str, problems: str = "auto", denoise_method: str = "au
         "output_path": str(sessions.session_path(session["session_id"]) / "processed.wav"),
         "viewer_url": _viewer_url(session["session_id"]),
         "regions": region_summary,
+        "verification": verification,
         "rationale": rationale,
         "metrics_before": m0,
         "metrics_after": m1,

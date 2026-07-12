@@ -122,6 +122,14 @@ uv run ait viewer                                 # viewer on :8471
   wheels and the `torchaudio.backend` import). Do not "just upgrade".
 - The module is named `dsp/ai_nr.py` (not `ai_denoise.py`) to avoid shadowing
   the function `dsp.ai_denoise()`.
+- **Biquad-recursie is bewust double precision** (cpp/biquad.hpp): een
+  50 Hz/Q30-notch op 44.1k zet de polen zó dicht bij z=1 dat float32-
+  afronding de notch hoorbaar ontstemt (gemeten: ~15 dB van 37 dB brom
+  bleef staan). I/O blijft float32.
+- **Hoge-Q-notches lekken bij een brom die áán springt** (koelkast): de
+  resonantie-transient laat de onset door. Daarom notcht plan_region_fixes
+  2× op Q15 i.p.v. 1× op Q30; smart_edit's tweede meetpas (verify=True)
+  bewaakt dit.
 - `normalize_loudness` sets the limiter ceiling 0.3 dB below the true-peak target
   (inter-sample peaks). E2E tests check denoising via the SNR delta, not the
   absolute noise floor (loudness normalization lifts the floor along with it).
