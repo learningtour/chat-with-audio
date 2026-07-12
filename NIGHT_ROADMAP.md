@@ -1,5 +1,19 @@
 # Roadmap — Saturday night into Sunday July 12, 2026 (+ Sunday day session)
 
+## Sunday afternoon/evening (on Serge's requests from the couch)
+
+- [x] 11. Netflix mastering first-class: format requirements (48 kHz/24-bit
+      PCM, channel count) in the spec registry, checked on the real file;
+      master_for fills spec defaults and verifies the delivery file
+- [x] 12. 5.1 surround: BS.1770 weighting (LFE excluded), per-channel QC,
+      ITU-downmix true peak, netflix-5.1 spec, DI-style block-gated dialogue
+      loudness (center-channel detection), Atmos ADM BWF recognition
+- [x] 13. The 32-track recorder: sync_tracks (GCC-PHAT + full-rate
+      refinement + two-pass against the sum of placed tracks), confidence
+      per track, clock-drift measurement/correction, aligned wavs + .sesx,
+      multitrack recorder view in the viewer — 32/32 sample-accurate in
+      the stress test
+
 ## Sunday day session (Serge: "keep going while I'm away from the laptop")
 
 - [x] 7. spectral_repair: RX-style spectral painting with phase-vocoder-
