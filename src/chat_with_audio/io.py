@@ -78,7 +78,22 @@ def resample(x: np.ndarray, sr: int, target_sr: int) -> tuple[np.ndarray, int]:
 BIT_DEPTH_SUBTYPES = {16: "PCM_16", 24: "PCM_24", 32: "FLOAT"}
 
 
-def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24") -> Path:
+def _dither_to_int16(x2: np.ndarray) -> np.ndarray:
+    """HP-TPDF-dither + kwantisatie naar int16. Bitreductie zonder dither
+    veroorzaakt kwantisatievervorming die met het signaal correleert (hoorbaar
+    op zachte staarten); TPDF-dither maakt er onhoorbare ruis van. De
+    high-pass-variant (verschil van twee TPDF-reeksen) schuift die ruis ook
+    nog eens naar boven, waar het oor het minst gevoelig is."""
+    rng = np.random.default_rng(0x5EED)
+    lsb = 1.0 / 32768.0
+    tpdf = (rng.random(x2.shape) - rng.random(x2.shape)) * lsb
+    hp = np.diff(np.concatenate([tpdf[:, :1], tpdf], axis=1), axis=1)
+    y = x2.astype(np.float64) + hp
+    return np.clip(np.rint(y * 32768.0), -32768, 32767).astype(np.int16)
+
+
+def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24",
+             dither: bool = True) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     x2 = x[None, :] if x.ndim == 1 else x
@@ -86,6 +101,11 @@ def save_wav(path: str | Path, x: np.ndarray, sr: int, subtype: str = "PCM_24") 
     # zodat de headroom behouden blijft in plaats van hard af te kappen.
     if x2.size and float(np.abs(x2).max()) > 0.999:
         subtype = "FLOAT"
+    if subtype == "PCM_16" and dither and x2.size:
+        # bij 24-bit ligt de LSB onder de float32-mantisseruis; alleen bij
+        # 16-bit is dither een echte correctheidskwestie
+        sf.write(str(path), _dither_to_int16(x2).T, sr, subtype="PCM_16")
+        return path
     sf.write(str(path), x2.T, sr, subtype=subtype)
     return path
 

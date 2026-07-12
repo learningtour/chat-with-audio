@@ -253,3 +253,25 @@ step objects live inside recipes. Available types:
 | `leveler` | gain riding to a common level | `target_db` (−18), bounds |
 | `limiter` | look-ahead brickwall | `ceiling_db` (−1.5) |
 | `loudness_normalize` | BS.1770 + TP limiter | `target_lufs`, `true_peak_db` |
+| `expander` | soft gate: push quiet down | `threshold_db` (−45), `ratio` (2), `range_db` (24) |
+| `multiband_compressor` | LR4 bands, per-band comp | `crossovers` ([200, 2000]), `threshold_db`, `ratio` |
+| `transient_shaper` | attack/sustain colour, no threshold | `attack_db`, `sustain_db` |
+| `tilt_eq` | tilt spectrum around a pivot | `tilt_db` (+ = brighter), `pivot_hz` (650) |
+| `trim` | head/tail cut, or auto to modulation | `start_s`/`end_s`, or `to_modulation` + `threshold_db` (−60), `pad_s` (0.5) |
+| `insert_silence` | insert gap / head offset | `at_s` (0), `duration_s` (1) |
+| `polarity_invert` | flip phase | `channel` (all\|left\|right\|index) |
+| `sample_delay` | delay one channel (mic-pair align) | `channel`, `samples` or `ms` (negative = advance) |
+| `to_mono` / `dual_mono` | downmix / L=R delivery | `mode`/`source` (sum\|left\|right) |
+| `swap_channels` | swap L and R | — |
+| `mid_side` | width & M/S gains | `width` (1.0; 0 = mono), `mid_db`, `side_db` |
+| `bass_mono` | mono the low end (LR4 split) | `freq` (120) |
+| `tone_slate` | broadcast leader: ref tone + gap | `tone_s` (10), `level_db` (−18), `freq` (1000), `gap_s` (1) |
+| `two_pop` | sync pop before programme | `offset_s` (2), `pop_ms` (42), `level_db` (−18) |
+
+Note on `trim`, `insert_silence`, `tone_slate` and `two_pop`: these change the
+file's length/offset, so put them at the very end of a chain (after
+loudness), and expect the viewer A/B to drift past the edit point.
+
+16-bit export is TPDF-dithered automatically (high-passed dither, so the
+quantization noise lands where the ear is least sensitive); pass
+`dither=False` to `io.save_wav` for bit-exact test paths.

@@ -367,6 +367,106 @@ def _step_loudness_normalize(x, sr, target_lufs: float = -16.0, true_peak_db: fl
     return y
 
 
+def _step_trim(x, sr, start_s: float | None = None, end_s: float | None = None,
+               to_modulation: bool = False, threshold_db: float = -60.0,
+               pad_s: float = 0.5):
+    from chat_with_audio.dsp import utility
+
+    return utility.trim(x, sr, start_s, end_s, to_modulation, threshold_db, pad_s)
+
+
+def _step_insert_silence(x, sr, at_s: float = 0.0, duration_s: float = 1.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.insert_silence(x, sr, at_s, duration_s)
+
+
+def _step_polarity_invert(x, sr, channel: str = "all"):
+    from chat_with_audio.dsp import utility
+
+    return utility.polarity_invert(x, sr, channel)
+
+
+def _step_sample_delay(x, sr, channel: str, samples: int = 0, ms: float | None = None):
+    from chat_with_audio.dsp import utility
+
+    return utility.sample_delay(x, sr, channel, samples, ms)
+
+
+def _step_to_mono(x, sr, mode: str = "sum"):
+    from chat_with_audio.dsp import utility
+
+    return utility.to_mono(x, sr, mode)
+
+
+def _step_dual_mono(x, sr, source: str = "sum"):
+    from chat_with_audio.dsp import utility
+
+    return utility.dual_mono(x, sr, source)
+
+
+def _step_swap_channels(x, sr):
+    from chat_with_audio.dsp import utility
+
+    return utility.swap_channels(x, sr)
+
+
+def _step_mid_side(x, sr, width: float = 1.0, mid_db: float = 0.0, side_db: float = 0.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.mid_side(x, sr, width, mid_db, side_db)
+
+
+def _step_bass_mono(x, sr, freq: float = 120.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.bass_mono(x, sr, freq)
+
+
+def _step_expander(x, sr, threshold_db: float = -45.0, ratio: float = 2.0,
+                   attack_ms: float = 5.0, release_ms: float = 120.0,
+                   range_db: float = 24.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.expander(x, sr, threshold_db, ratio, attack_ms, release_ms, range_db)
+
+
+def _step_multiband_compressor(x, sr, crossovers: list | None = None,
+                               threshold_db: float = -28.0, ratio: float = 2.0,
+                               attack_ms: float = 15.0, release_ms: float = 150.0,
+                               makeup_db: float = 0.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.multiband_compressor(x, sr, crossovers, threshold_db, ratio,
+                                        attack_ms, release_ms, makeup_db)
+
+
+def _step_transient_shaper(x, sr, attack_db: float = 0.0, sustain_db: float = 0.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.transient_shaper(x, sr, attack_db, sustain_db)
+
+
+def _step_tilt_eq(x, sr, tilt_db: float = 0.0, pivot_hz: float = 650.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.tilt_eq(x, sr, tilt_db, pivot_hz)
+
+
+def _step_tone_slate(x, sr, tone_s: float = 10.0, level_db: float = -18.0,
+                     freq: float = 1000.0, gap_s: float = 1.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.tone_slate(x, sr, tone_s, level_db, freq, gap_s)
+
+
+def _step_two_pop(x, sr, offset_s: float = 2.0, freq: float = 1000.0,
+                  pop_ms: float = 42.0, level_db: float = -18.0):
+    from chat_with_audio.dsp import utility
+
+    return utility.two_pop(x, sr, offset_s, freq, pop_ms, level_db)
+
+
 STEP_REGISTRY = {
     "highpass": _step_highpass,
     "lowpass": _step_lowpass,
@@ -389,6 +489,21 @@ STEP_REGISTRY = {
     "leveler": _step_leveler,
     "limiter": _step_limiter,
     "loudness_normalize": _step_loudness_normalize,
+    "trim": _step_trim,
+    "insert_silence": _step_insert_silence,
+    "polarity_invert": _step_polarity_invert,
+    "sample_delay": _step_sample_delay,
+    "to_mono": _step_to_mono,
+    "dual_mono": _step_dual_mono,
+    "swap_channels": _step_swap_channels,
+    "mid_side": _step_mid_side,
+    "bass_mono": _step_bass_mono,
+    "expander": _step_expander,
+    "multiband_compressor": _step_multiband_compressor,
+    "transient_shaper": _step_transient_shaper,
+    "tilt_eq": _step_tilt_eq,
+    "tone_slate": _step_tone_slate,
+    "two_pop": _step_two_pop,
 }
 
 
