@@ -132,7 +132,10 @@ Claude (chat)  ── MCP (stdio) ──>  Python orchestration ──> C++ DSP 
 ## Documentation
 
 Extensive docs live in [`docs/`](docs/README.md): [getting
-started](docs/getting-started.md), the full [tool reference](docs/tools.md),
+started](docs/getting-started.md), a hands-on Dutch [training
+course](docs/trainingshandleiding.md) with generated practice material
+(`uv run python scripts/maak_oefenmateriaal.py`), the full
+[tool reference](docs/tools.md),
 a [workflows cookbook](docs/workflows.md) (podcast, broadcast delivery, film
 dialogue, restoration, QC), [delivery compliance](docs/compliance.md),
 [smart regions](docs/smart-regions.md), [recipes](docs/recipes.md) and the

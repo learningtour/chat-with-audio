@@ -8,6 +8,7 @@ plays every intervention; every operation is a fully documented session.
 | Guide | What it covers |
 |---|---|
 | [Getting started](getting-started.md) | Install, register with Claude/Codex, first session |
+| [Trainingshandleiding](trainingshandleiding.md) 🇳🇱 | Hands-on course in 7 lessons with generated practice material (Dutch) |
 | [Tool reference](tools.md) | All 40 MCP tools: parameters, returns, examples |
 | [Workflows cookbook](workflows.md) | Podcast, broadcast delivery, film dialogue, music, restoration, batch |
 | [Delivery compliance](compliance.md) | EBU R128, ATSC A/85, Netflix, streaming and ACX specs — how checking and mastering work |
