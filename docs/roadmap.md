@@ -15,7 +15,12 @@ for the tool; capture it as knowledge, not features.*
 > ID3 chapters, codec_preview, delivery_package), F (automix_tracks,
 > mix_minus, export_dme). Plus: viewer version-handshake restart,
 > list_sessions search/limit, cleanup_sessions, v0.3.0.
-> Now: **40 MCP tools, 200 tests.** Remaining from the list below:
+> Same night, second shift: viewer UX (blind X/Y listening test, session
+> search, shortcuts overlay, monitoring volume, seek keys), a Dutch
+> hands-on training course (docs/trainingshandleiding.md) with a
+> generated, test-guarded practice set, and a cookbook pass covering all
+> the new tools. Now: **40 MCP tools, 217 tests.**
+> Remaining from the list below:
 > the per-category long tail (BWF timecode *sync*, noise-profile-from-
 > selection, wow/flutter, dynamic/M-S EQ, 7.1/LtRt, scene noise matching,
 > codec-artifact repair, batch rename, session archive) and the

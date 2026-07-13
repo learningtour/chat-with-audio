@@ -12,14 +12,20 @@ before moving on.
    balance.
 2. *"Fix it only where something is wrong"* — `smart_edit` removes the AC
    noise that starts halfway, the fridge hum in the intro, nothing else.
-3. *"Apply my podcast preset"* — `apply_recipe("podcast-speech")`: the calm
+3. *"Remove the uhs and tighten the pauses to 0.6 s — show me the plan
+   first"* — `edit_speech(apply=False)` lists every planned cut with its
+   transcript context; approve, and it runs with crossfades on every joint.
+4. *"Apply my podcast preset"* — `apply_recipe("podcast-speech")`: the calm
    speech chain (highpass, de-esser, leveler, light compression, −16 LUFS).
-4. *"Check it for Apple Podcasts"* — `check_compliance(spec="apple-podcast")`
+5. *"Check it for Apple Podcasts"* — `check_compliance(spec="apple-podcast")`
    → pass/fail per criterion.
-5. *"Export as mp3"* — done.
+6. *"What will the mp3 encoder do to it?"* — `codec_preview`: loudness shift
+   and codec overs, before you publish.
+7. *"Export as mp3 with chapters on the topic changes"* —
+   `export_podcast_mp3` writes ID3 chapters players actually show.
 
 First episode sounded right? *"Save this as my show preset"* — every next
-episode is step 3 with your own recipe.
+episode is step 4 with your own recipe.
 
 ## Broadcast delivery (EBU R128)
 
@@ -32,10 +38,16 @@ episode is step 3 with your own recipe.
 3. Not passing because of a technical gate? The report says which tool fixes
    it (`repair_audio` for clipping, `smart_edit` for hum/noise...). Fix,
    then master again.
+4. *"Stamp it as broadcast wav, timecode 10:00:00:00"* —
+   `write_bwf_metadata`: bext/iXML (originator, timecode, coding history);
+   the audio stays bit-for-bit untouched.
+5. *"Bundle the delivery"* — `delivery_package`: master + QC report +
+   compliance.json + checksums.md5 + manifest in one folder; the receiving
+   side verifies with `md5sum -c`.
 
 For US television use `spec="atsc-a85"`; for Netflix-style dialogue-gated
 delivery use `spec="netflix-2.0"` (loudness is steered on the detected
-speech, not the whole mix).
+speech, not the whole mix). Australia: `op-59`; Japan: `arib-tr-b32`.
 
 ## Film / documentary dialogue pass
 
@@ -54,6 +66,28 @@ speech, not the whole mix).
    something was too aggressive — say so and it gets re-run milder.
 7. *"Give me the region map as markers"* — `export_markers` → import the CSV
    in Audition; every treated region is a cue for manual review.
+8. ADR to fit into the scene? *"Make this studio line sound like it was
+   recorded in the same room as scene-take.wav"* — `match_room` matches the
+   spectral colour and convolves a synthesized room at the RT60 measured
+   from the scene reference.
+9. Off-screen voice, phone call, megaphone? The futz recipes:
+   *"apply the telephone recipe"* (`futz-telephone`, `futz-walkie`,
+   `futz-megaphone`, `futz-other-room`, `futz-small-speaker`).
+
+## Voice edit & redaction (interviews, compliance)
+
+1. *"Remove the filler words and stutters, tighten pauses to half a
+   second — plan first"* — `edit_speech(apply=False)`: the cut list with
+   transcript context; nothing happens until you approve.
+2. *"Bleep every mention of the client's name"* — `bleep_text=[...]`:
+   length-neutral 1 kHz bleep (or `bleep_style="mute"` for silence), so the
+   timeline of the programme doesn't shift.
+3. *"Speed the whole thing up 8% without changing the pitch"* —
+   `time_stretch(rate=1.08)` (phase vocoder, peak-locked); voice character
+   stays put. Need anonymization? `pitch_shift(semitones=-3,
+   preserve_formants=False)` changes the voice; with `preserve_formants=True`
+   it stays natural-sounding for creative shifts.
+4. Export the cut list as markers for the editor doing the picture conform.
 
 ## Rescue: noisy location recording
 
@@ -88,6 +122,15 @@ on the table, the camera. Drop them all in one folder and say:
 3. Check the A/B in the viewer: A is the unsynced pile-up, B the synced sum.
 4. Open the generated `.sesx` in Audition — all tracks aligned on one
    timeline, ready to mix. Or take the aligned WAVs into any DAW.
+5. Dialogue shoot with boom + lavs? *"Mix my mics automatically"* —
+   `automix_tracks`: sync, spectral-match every mic to the boom, then
+   Dugan-style gain sharing (shares always sum to 1 — no noise stacking, no
+   gate chatter). A/B: naive sum vs the automix.
+6. Remote guest needs a return feed? *"Give me the mix minus track 2"* —
+   `mix_minus`: the classic N-1, no echo for the caller.
+7. Dubbing or relocalization? *"Give me dialogue and M&E stems"* —
+   `export_dme`: D + M&E reconstruct the mix exactly (best-effort AI
+   separation — check for artifacts before delivery).
 
 ## Consistency across an archive / season
 
