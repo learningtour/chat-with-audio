@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chat with Audio — A/B Viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Cg fill='none' stroke='%234cc2ff' stroke-width='2.2' stroke-linecap='round'%3E%3Cline x1='4' y1='11' x2='4' y2='17'/%3E%3Cline x1='9' y1='7' x2='9' y2='21'/%3E%3Cline x1='14' y1='4' x2='14' y2='24'/%3E%3Cline x1='19' y1='8' x2='19' y2='20'/%3E%3Cline x1='24' y1='12' x2='24' y2='16'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -25,13 +26,24 @@
       </div>
     </div>
     <p class="section-label">Sessies</p>
+    <input id="search" type="search" placeholder="Zoek sessie…"
+           title="filter op naam, datum of bewerking">
     <ul id="session-list"></ul>
+    <p id="no-hits" class="sub" hidden>Niets gevonden.</p>
   </aside>
   <main id="main">
     <div id="empty" class="panel">
       <h2>Kies een sessie</h2>
-      <p>Verwerk audio via Claude (&ldquo;maak dit geluid beter&rdquo;) en de sessie
-         verschijnt hier vanzelf.</p>
+      <p>Verwerk audio via Claude en de sessie verschijnt hier vanzelf.
+         Probeer bijvoorbeeld:</p>
+      <ul class="try-list">
+        <li>&ldquo;Analyseer <code>~/Muziek/interview.wav</code>&rdquo;</li>
+        <li>&ldquo;Maak dit geluid beter&rdquo;</li>
+        <li>&ldquo;Fix het alleen waar iets mis is&rdquo; (chirurgisch)</li>
+        <li>&ldquo;Haal de uhs eruit en maak de pauzes strakker&rdquo;</li>
+      </ul>
+      <p class="sub">Elke bewerking komt hier als A/B-sessie te staan: origineel
+         en resultaat naast elkaar, met uitleg per stap.</p>
     </div>
     <div id="detail" hidden>
       <header id="detail-header">
@@ -51,15 +63,37 @@
             <button id="btn-r" title="toets r — hoor wat de bewerking veranderde">R <span>verschil</span></button>
           </div>
           <span id="time">0:00 / 0:00</span>
+          <label id="vol-wrap" title="afluisterniveau (alleen monitoring, verandert niets aan de audio)">
+            🔊<input id="vol" type="range" min="0" max="100" value="100">
+          </label>
           <div id="file-actions">
             <a id="dl-a" class="btn-like" title="download origineel" download>⬇ A</a>
             <a id="dl-b" class="btn-like" title="download verbeterde versie" download>⬇ B</a>
             <a id="dl-r" class="btn-like" title="download residu (verschil)" download hidden>⬇ R</a>
+            <button id="btn-blind" title="blinde luistertest: X/Y zonder te weten welke welke is (toets x)">👂 Blind</button>
             <button id="btn-editor">Open in …</button>
             <select id="editor-select" title="instelling: in welke editor openen"></select>
           </div>
         </div>
       </header>
+
+      <section id="blind-bar" class="panel" hidden>
+        <h3>👂 Blinde luistertest</h3>
+        <p class="sub">Alles wat verraadt welke versie je hoort is vervaagd.
+          Luister om en om en kies eerlijk wat beter klinkt — pas daarna zie je
+          welke versie het was.</p>
+        <div id="blind-controls">
+          <div id="xy-toggle">
+            <button id="blind-x" class="active">X</button>
+            <button id="blind-y">Y</button>
+          </div>
+          <span class="sub">wissel met de toetsen <kbd>x</kbd> / <kbd>y</kbd></span>
+          <button id="blind-pick-x">X klinkt beter</button>
+          <button id="blind-pick-y">Y klinkt beter</button>
+          <button id="blind-stop">Stoppen</button>
+        </div>
+        <p id="blind-result" hidden></p>
+      </section>
 
       <section class="panel">
         <div class="wave-row"><span class="tag">A · origineel</span>
@@ -109,10 +143,29 @@
         <span><kbd>spatie</kbd> afspelen</span>
         <span><kbd>a</kbd>/<kbd>b</kbd> origineel ↔ verbeterd</span>
         <span><kbd>r</kbd> residu (verschil)</span>
-        <span>klik in golfvorm of tijdlijn = zoeken</span>
+        <span><kbd>←</kbd>/<kbd>→</kbd> ±5 s · <kbd>0</kbd> naar begin</span>
+        <span><kbd>x</kbd> blinde test</span>
+        <span><kbd>?</kbd> alle sneltoetsen</span>
       </footer>
     </div>
   </main>
+</div>
+<div id="help-overlay" hidden>
+  <div class="help-card panel">
+    <h3>Sneltoetsen</h3>
+    <table>
+      <tr><td><kbd>spatie</kbd></td><td>afspelen / pauzeren</td></tr>
+      <tr><td><kbd>a</kbd> / <kbd>b</kbd></td><td>luister origineel / verbeterd (b wisselt heen en weer)</td></tr>
+      <tr><td><kbd>r</kbd></td><td>residu: hoor precies wat de bewerking veranderde</td></tr>
+      <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>5 seconden terug / vooruit</td></tr>
+      <tr><td><kbd>0</kbd></td><td>terug naar het begin</td></tr>
+      <tr><td><kbd>x</kbd></td><td>blinde luistertest starten of stoppen (daarin: <kbd>x</kbd>/<kbd>y</kbd> wisselen)</td></tr>
+      <tr><td>klik</td><td>in golfvorm of tijdlijn = daarheen springen; regio op de tijdlijn = naar die ingreep</td></tr>
+      <tr><td><kbd>?</kbd> / <kbd>Esc</kbd></td><td>dit overzicht openen / sluiten</td></tr>
+    </table>
+    <p class="sub">Tip: A speelt loudness-matched af zodat je kárakter vergelijkt,
+      geen volume — luider klinkt anders altijd &ldquo;beter&rdquo;.</p>
+  </div>
 </div>
 <script src="/static/app.js"></script>
 </body>

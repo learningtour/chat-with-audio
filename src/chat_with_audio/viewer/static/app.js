@@ -11,6 +11,9 @@ let gainA = null, gainB = null, gainR = null;
 let playing = false, startedAt = 0, offset = 0;
 let listen = "b";  // 'a' origineel | 'b' verbeterd | 'r' residu (verschil)
 let trimA = 1;  // monitoring-trim voor originelen die boven 0 dBFS pieken (32-bit float)
+let masterGain = null;  // afluisterniveau (monitoring, niet destructief)
+let filterQuery = "";   // zoekveld sessielijst
+let blind = null;       // blinde luistertest: {map: {x:'a'|'b', y:...}} of null
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,7 +45,10 @@ function splitLabel(label) {
 function renderList() {
   const ul = $("session-list");
   ul.innerHTML = "";
-  for (const s of sessionsList) {
+  const q = filterQuery.trim().toLowerCase();
+  const shown = sessionsList.filter((s) => !q ||
+    `${s.label || ""} ${s.session_id} ${s.created || ""}`.toLowerCase().includes(q));
+  for (const s of shown) {
     const li = document.createElement("li");
     li.dataset.id = s.session_id;
     if (current && s.session_id === current.session_id) li.classList.add("active");
@@ -53,12 +59,15 @@ function renderList() {
     li.onclick = () => { location.hash = "#/session/" + s.session_id; };
     ul.appendChild(li);
   }
+  $("no-hits").hidden = !(q && !shown.length && sessionsList.length);
 }
 
 async function loadList() {
   sessionsList = await (await fetch("/api/sessions")).json();
   renderList();
 }
+
+$("search").oninput = () => { filterQuery = $("search").value; renderList(); };
 
 // push: nieuwe sessies verschijnen vanzelf, met een klikbare melding
 function showNewSessionToast(s) {
@@ -96,6 +105,7 @@ function fmtTime(t) {
 // ---- sessie laden ----
 async function openSession(id) {
   stop();
+  exitBlind();
   bufA = bufB = bufR = rawA = rawB = rawR = null; offset = 0;
   const r = await fetch("/api/sessions/" + id);
   if (!r.ok) { alert("Sessie niet gevonden"); return; }
@@ -367,12 +377,19 @@ function _gainFor(which) {
   return listen === "r" && bufR ? 1 : 0;
 }
 
+function volumeGain() {
+  const v = +($("vol").value || 100) / 100;
+  return v * v;  // kwadratisch: schuif voelt lineair voor het oor
+}
+
 async function play() {
   if (!current || playing) return;
   await ensureBuffers();
   if (!bufA) return;
+  if (!masterGain) { masterGain = ctx.createGain(); masterGain.connect(ctx.destination); }
+  masterGain.gain.value = volumeGain();
   gainA = ctx.createGain(); gainB = ctx.createGain(); gainR = ctx.createGain();
-  for (const g of [gainA, gainB, gainR]) g.connect(ctx.destination);
+  for (const g of [gainA, gainB, gainR]) g.connect(masterGain);
   gainA.gain.value = _gainFor("a");
   gainB.gain.value = _gainFor("b");
   gainR.gain.value = _gainFor("r");
@@ -416,7 +433,7 @@ function seekTo(frac) {
 
 function setListen(which) {
   if (which !== "a" && !current?.has_processed) return;
-  if (which === "r" && playing && !bufR) return;
+  if (which === "r" && (blind || (playing && !bufR))) return;  // R verraadt de blinde test
   listen = which;
   setListenButtons();
   if (playing && gainA && gainB && gainR) {
@@ -448,6 +465,58 @@ function tick() {
   requestAnimationFrame(tick);
 }
 
+// ---- blinde luistertest ----
+// X en Y worden willekeurig aan A en B gekoppeld; alles wat de koppeling zou
+// verraden (golfvormen, metingen, spectrogram, A/B-knoppen) is vervaagd tot
+// er gekozen is. Eerlijk luisteren: luider klinkt anders altijd "beter",
+// daarom speelt A sowieso al loudness-matched af.
+function enterBlind() {
+  if (!current?.has_processed || blind) return;
+  blind = { map: Math.random() < 0.5 ? { x: "a", y: "b" } : { x: "b", y: "a" } };
+  $("detail").classList.add("blind");
+  $("blind-bar").hidden = false;
+  $("blind-result").hidden = true;
+  $("blind-pick-x").disabled = $("blind-pick-y").disabled = false;
+  blindListen("x");
+}
+
+function exitBlind() {
+  if (!blind) return;
+  blind = null;
+  $("detail").classList.remove("blind");
+  $("blind-bar").hidden = true;
+  setListen("b");
+}
+
+function blindListen(which) {
+  if (!blind) return;
+  setListen(blind.map[which]);
+  $("blind-x").classList.toggle("active", which === "x");
+  $("blind-y").classList.toggle("active", which === "y");
+}
+
+function blindPick(which) {
+  if (!blind) return;
+  const versie = (k) => blind.map[k] === "a" ? "het origineel" : "de bewerking";
+  const res = $("blind-result");
+  res.innerHTML = `Jij koos <b>${which.toUpperCase()}</b> — dat is ` +
+    `<b>${versie(which)}</b>. (X was ${versie("x")}, Y was ${versie("y")}.) ` +
+    (blind.map[which] === "b"
+      ? "De bewerking wint de blinde test. 🎉"
+      : "Het origineel won hier — goed om te weten: vertel de chat wat je " +
+        "stoort aan de bewerking, dan stelt die de keten bij.");
+  res.hidden = false;
+  $("blind-pick-x").disabled = $("blind-pick-y").disabled = true;
+  $("detail").classList.remove("blind");  // onthullen: alles weer zichtbaar
+}
+
+$("btn-blind").onclick = () => (blind ? exitBlind() : enterBlind());
+$("blind-x").onclick = () => blindListen("x");
+$("blind-y").onclick = () => blindListen("y");
+$("blind-pick-x").onclick = () => blindPick("x");
+$("blind-pick-y").onclick = () => blindPick("y");
+$("blind-stop").onclick = exitBlind;
+
 // ---- events ----
 $("btn-play").onclick = togglePlay;
 $("btn-a").onclick = () => setListen("a");
@@ -461,9 +530,38 @@ for (const id of ["wave-a", "wave-b"]) {
     seekTo((e.clientX - rect.left) / rect.width);
   });
 }
+$("vol").oninput = () => {
+  localStorage.setItem("ait-volume", $("vol").value);
+  if (masterGain) masterGain.gain.setTargetAtTime(volumeGain(), ctx.currentTime, 0.01);
+};
+if (localStorage.getItem("ait-volume") !== null)
+  $("vol").value = localStorage.getItem("ait-volume");
+
+function toggleHelp(force) {
+  const o = $("help-overlay");
+  o.hidden = force !== undefined ? !force : !o.hidden;
+}
+$("help-overlay").onclick = () => toggleHelp(false);
+
 document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT") return;
-  if (e.code === "Space") { e.preventDefault(); togglePlay(); }
+  if (e.target.tagName === "INPUT" && e.target.type !== "range") return;
+  if (e.key === "?") { toggleHelp(); return; }
+  if (e.key === "Escape") { toggleHelp(false); exitBlind(); return; }
+  if (e.code === "Space") { e.preventDefault(); togglePlay(); return; }
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    if (!current) return;
+    e.preventDefault();
+    const d = e.key === "ArrowLeft" ? -5 : 5;
+    seekTo(Math.min(Math.max(pos() + d, 0), current.duration_s) / current.duration_s);
+    return;
+  }
+  if (e.key === "0") { if (current) seekTo(0); return; }
+  if (blind) {  // in de blinde test verraden a/b/r de koppeling
+    if (e.key === "x") blindListen("x");
+    if (e.key === "y") blindListen("y");
+    return;
+  }
+  if (e.key === "x") { enterBlind(); return; }
   if (e.key === "a") setListen("a");
   if (e.key === "b") setListen(listen === "b" ? "a" : "b");
   if (e.key === "r") setListen("r");

@@ -21,6 +21,11 @@ body { background: var(--bg); color: var(--text);
 .sub { color: var(--muted); font-size: 12px; }
 .section-label { color: var(--muted); font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .8px; margin: 0 0 8px 2px; }
+#search { width: 100%; background: var(--panel2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+  font-size: 13px; margin-bottom: 8px; }
+#search:focus { outline: none; border-color: var(--accent); }
+#no-hits { margin: 4px 2px; }
 #session-list { list-style: none; padding: 0; }
 #session-list li { padding: 8px 10px; border-radius: 9px; cursor: pointer;
   margin-bottom: 3px; font-size: 13px; border: 1px solid transparent; }
@@ -124,6 +129,44 @@ th { color: var(--muted); font-weight: 500; }
 details { margin-top: 10px; color: var(--muted); }
 pre { font-size: 11px; overflow-x: auto; background: var(--panel2);
   padding: 10px; border-radius: 8px; margin-top: 8px; color: var(--text); }
+
+/* ---------- lege staat ---------- */
+.try-list { margin: 10px 0 12px 20px; }
+.try-list li { margin-bottom: 5px; }
+.try-list code { background: var(--panel2); border-radius: 5px; padding: 0 5px;
+  font-size: 12px; }
+
+/* ---------- volume ---------- */
+#vol-wrap { display: inline-flex; align-items: center; gap: 6px;
+  color: var(--muted); }
+#vol { width: 84px; accent-color: var(--accent); }
+
+/* ---------- blinde luistertest ---------- */
+#blind-bar { border-color: var(--accent); }
+#blind-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 10px; }
+#xy-toggle { display: flex; border: 1px solid var(--border); border-radius: 9px;
+  overflow: hidden; }
+#xy-toggle button { border: none; border-radius: 0; padding: 8px 18px;
+  font-weight: 700; }
+#xy-toggle button + button { border-left: 1px solid var(--border); }
+#xy-toggle button.active { background: var(--accent); color: var(--accent-ink); }
+#blind-result { margin-top: 10px; }
+/* alles wat de koppeling verraadt vervaagt; de blinde balk zelf niet */
+#detail.blind .panel:not(#blind-bar), #detail.blind #score-badges,
+#detail.blind #s-label, #detail.blind #s-meta {
+  filter: blur(10px); pointer-events: none; user-select: none; }
+#detail.blind #ab-toggle, #detail.blind #btn-r { visibility: hidden; }
+#detail.blind #file-actions a { pointer-events: none; opacity: .35; }
+
+/* ---------- sneltoetsen-overlay ---------- */
+#help-overlay { position: fixed; inset: 0; background: rgba(5,7,10,.72);
+  display: flex; align-items: center; justify-content: center; z-index: 20; }
+.help-card { max-width: 560px; width: calc(100% - 40px);
+  box-shadow: 0 12px 48px rgba(0,0,0,.6); }
+.help-card td { text-align: left; }
+.help-card td:first-child { white-space: nowrap; width: 110px; }
+.help-card .sub { margin-top: 10px; }
 
 /* ---------- footer & toast ---------- */
 #keys { display: flex; flex-wrap: wrap; gap: 18px; color: var(--muted);
